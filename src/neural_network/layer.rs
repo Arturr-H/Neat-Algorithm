@@ -2,22 +2,9 @@ use rand::thread_rng;
 use rand_distr::{Distribution, Normal};
 
 pub struct Layer {
+    /// The index of this layer, where 0 = input, 1 = output
+    index: usize,
 
-    /// The weights are stored like this
-    /// [[w; current_layer_size]; prev_layer_size]
-    /// 
-    /// Therefore to get the fist node from the previous
-    /// layer's connection to the second node in the current
-    /// layer you need to call `weights[0][1]`
-    weights: Vec<Vec<f32>>,
-
-    /// Each index corresponds to the same neuron in the layer
-    biases: Vec<f32>,
-
-    /// The amount of neurons in this layer
-    size: usize,
-    /// The amount of neurons in the previous layer
-    prev_layer_size: usize
 }
 
 impl Layer {
