@@ -29,7 +29,22 @@ pub struct NeatNetwork {
     /// between two nodes. NEEDS to be (min, max),
     /// and by that I mean the first integer index
     /// needs to be less than the second.
-    connections: HashSet<(usize, usize)>
+    connections: HashSet<(usize, usize)>,
+
+    /// Applied to new genes, which is used later
+    /// for crossover mutation
+    /// 
+    /// Innovation numers in NEAT networks work like this: 
+    /// If we have multiple networks, who mutate diffrently
+    /// then each added gene (mutation) will increment the
+    /// `global_innovation` number, and store it as its own
+    /// innovation number.
+    /// 
+    /// Later when we crossover multiple genomes (networks)
+    /// we'll only crossover genes with the same innovation
+    /// number as they represent the same "idea", so we don't
+    /// ruin the topology.
+    global_innovation: usize
 }
 
 impl NeatNetwork {
@@ -65,7 +80,8 @@ impl NeatNetwork {
             node_genes,
             connection_genes,
             node_gene_index: input + output,
-            connections
+            connections,
+            global_innovation: 0
         }
     }
 
@@ -108,17 +124,55 @@ impl NeatNetwork {
             }
         }
     }
+
+    /// Takes the input vector, and propagates it through all
+    /// node genes and connections and returns the output layer.
+    pub fn propagate(&self, input: Vec<f32>) -> Vec<f32> {
+        // TODO: Check for better bias initialization
+        let bias = 0.1;
+        let mut output = vec![bias; self.output_size];
+
+        for (index, input_value) in input.iter().enumerate() {
+            
+        }
+
+        todo!()
+    }
+
+    pub fn topological_sort(&self) -> Vec<Vec<usize>> {
+        // First vector indicates each input node, and the
+        // nested vec indicates a sorted list of indexes to 
+        // nodes that are connected
+        let mut nodes_sorted: Vec<Vec<usize>> = vec![Vec::new(); self.input_size];
+
+        for node_index in 0..self.input_size {
+            self.search_connection(node_index, &mut nodes_sorted[node_index]);
+        }
+
+        nodes_sorted
+    }
+
+    fn search_connection(&self, node_index: usize, nodes: &mut Vec<usize>) -> () {
+        for connection in &self.connection_genes {
+            /* Found a connection to another node from current */
+            if connection.node_in() == node_index {
+                self.search_connection(connection.node_out(), nodes)
+            }
+        }
+
+        nodes.push(node_index);
+    }
 }
 
 impl Debug for NeatNetwork {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", format!(
 r#"NeatNetwork:
-        ├ input size: {}
-        ├ output size: {}
-        │
-        ├ Gene:nodes = [{:?}],
-────────┴ Gene:connections = [{:?}]
+    ├ input size: {}
+    ├ output size: {}
+    │
+    ├ Gene:nodes       = {:?},
+────┴ Gene:connections = {:?}
             "#,
             self.input_size,
             self.output_size,
