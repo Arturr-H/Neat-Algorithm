@@ -12,10 +12,15 @@ use block_blast::board::{self, board::Board, board_error::PlacementError, cell::
 
 fn main() -> () {
     let mut net = NeatNetwork::new(
-        5,
-        5
+        2,
+        1
     );
     println!("{net:#?}");
+
+    let xor = vec![((0.0, 0.0), 0.0),
+                    ((1.0, 0.0), 1.0),
+                    ((0.0, 1.0), 1.0),
+                    ((1.0, 1.0), 0.0)];
     
     net.mutate();
     println!("{net:#?}");
