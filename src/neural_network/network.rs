@@ -91,15 +91,9 @@ impl NeatNetwork {
     /// Will randomly add a new gene
     pub fn mutate(&mut self) -> () {
         let mut rng = thread_rng();
-        let will_be_node_gene = thread_rng().gen_bool(1.0);
+        let will_be_node_gene = thread_rng().gen_bool(0.5);
         
         if will_be_node_gene {
-            // self.node_genes.push(NodeGene::new(
-            //     self.node_gene_index,
-            //     NodeGeneType::Regular
-            // ));
-
-            // choose an random existing connection
             let length = self.connection_genes.len();
             let gene = &mut self.connection_genes[rng.gen_range(0..length)];
 
@@ -120,9 +114,7 @@ impl NeatNetwork {
                     self.connection_genes.push(output);
                 },
 
-                _ => {
-
-                }
+                _ => {}
             }
         }
         // Connection gene
