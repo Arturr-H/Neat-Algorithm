@@ -11,17 +11,27 @@ use neural_network::network::NeatNetwork;
 use block_blast::board::{self, board::Board, board_error::PlacementError, cell::Cell};
 
 fn main() -> () {
-    // let mut net = NeatNetwork::new(
-    //     64 /* All cells */ + 36 /* Tiles to choose from */,
-    //     8/*x*/ + 8/*y - Coordinate for tile placement */ + 3 /* What tile buffer to choose */
-    // );
     let mut net = NeatNetwork::new(
         5,
         5
     );
     println!("{net:#?}");
+    
+    net.mutate();
+    println!("{net:#?}");
 
 
+
+
+
+
+
+
+
+    // let mut net = NeatNetwork::new(
+    //     64 /* All cells */ + 36 /* Tiles to choose from */,
+    //     8/*x*/ + 8/*y - Coordinate for tile placement */ + 3 /* What tile buffer to choose */
+    // );
     /*let restart = |game: &mut Board, score: usize| {
         if score > 50 {
             panic!("SHIT YOU ARe GOOD! GOOD JOB AI");
