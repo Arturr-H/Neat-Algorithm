@@ -2,7 +2,7 @@
 /// then nodes will propagate data forward until it
 /// may reach an output node
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone, Copy)]
 pub enum NodeGeneType {
     Input, Ouptut, Regular
 }
@@ -20,22 +20,57 @@ pub struct NodeGene {
     /// Each type of node, as output, input or "dynamic"
     /// hidden nodes are stored in the same place. 
     node_type: NodeGeneType,
+
+    /// Used for forward prop so we won't need to re-
+    /// calculate every time
+    activation: f32,
+
+    /// Indexes of connections where node_out is the 
+    /// `id` field in this struct.
+    incoming_connection_indexes: Vec<usize>
 }
 
 impl NodeGene {
     pub fn new(index: usize, node_type: NodeGeneType) -> Self {
-        Self { id: index, bias: 0.1, node_type }
+        Self {
+            id: index,
+            bias: 0.1,
+            node_type,
+            activation: 0.,
+            incoming_connection_indexes: Vec::new()
+        }
+    }
+
+    // Getters
+    pub fn id(&self) -> usize { self.id }
+    pub fn bias(&self) -> f32 { self.bias }
+    pub fn node_type(&self) -> NodeGeneType { self.node_type }
+    pub fn activation(&self) -> f32 { self.activation }
+    pub fn incoming_connection_indexes(&self) -> &Vec<usize> { &self.incoming_connection_indexes }
+
+    // Setters
+    pub fn set_activation(&mut self, to: f32) -> () { self.activation = to; }
+
+    /// Appends a new incoming connection gene to the list
+    pub fn register_new_incoming(&mut self, index: usize) -> () {
+        assert!(!self.incoming_connection_indexes.contains(&index));
+        self.incoming_connection_indexes.push(index);
     }
 }
 
 impl std::fmt::Debug for NodeGene {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let type_str = match self.node_type {
+        write!(f, "Node({:?}{} ({:.3}))", self.node_type, self.id, self.activation)
+    }
+}
+impl std::fmt::Debug for NodeGeneType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let type_str = match self {
             NodeGeneType::Input => "I",
             NodeGeneType::Ouptut => "O",
             NodeGeneType::Regular => "R",
         };
 
-        write!(f, "Node({}{})", type_str, self.id)
+        write!(f, "{type_str}")
     }
 }
