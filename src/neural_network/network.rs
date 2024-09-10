@@ -29,7 +29,7 @@ pub struct NeatNetwork {
     /// between two nodes. NEEDS to be (min, max),
     /// and by that I mean the first integer index
     /// needs to be less than the second.
-    connections: HashSet<(usize, usize)>
+    occupied_connections: HashSet<(usize, usize)>
 }
 
 impl NeatNetwork {
@@ -48,13 +48,13 @@ impl NeatNetwork {
 
         // Create connections genes
         let mut connection_genes = Vec::new();
-        let mut connections = HashSet::new();
+        let mut occupied_connections = HashSet::new();
         let mut rng = thread_rng();
         for i in 0..3 {
             let node1 = rng.gen_range(0..input); // input
             let node2 = rng.gen_range(input..(input+output)); // output
 
-            connections.insert((node1, node2));
+            occupied_connections.insert((node1, node2));
             connection_genes.push(ConnectionGene::new(node1, node2, rng.gen_range(0.05..0.2)));
         }
 
@@ -65,7 +65,7 @@ impl NeatNetwork {
             node_genes,
             connection_genes,
             node_gene_index: input + output,
-            connections
+            occupied_connections
         }
     }
 
@@ -73,11 +73,24 @@ impl NeatNetwork {
     pub fn mutate(&mut self) -> () {
         let mut rng = thread_rng();
         let will_be_node_gene = thread_rng().gen_bool(0.5);
+        
         if will_be_node_gene {
-            self.node_genes.push(NodeGene::new(
-                self.node_gene_index,
-                NodeGeneType::Regular
-            ));
+            // self.node_genes.push(NodeGene::new(
+            //     self.node_gene_index,
+            //     NodeGeneType::Regular
+            // ));
+
+            // choose an random existing connection
+            // disable the chosen connection
+            
+            
+
+            // create a new connection between the newly
+            // created node and the input with a weight of 1 
+
+            // create a new connection between the newly created
+            // node and the ouput with the weight of the chosen connection
+            
 
             self.node_gene_index += 1;
         }
@@ -94,7 +107,7 @@ impl NeatNetwork {
             while !connection_found {
                 node1 = rng.gen_range(0..self.input_size); // input
                 node2 = rng.gen_range(self.input_size..(self.input_size+self.output_size)); // output
-                if !self.connections.contains(&(node1, node2)) {
+                if !self.occupied_connections.contains(&(node1, node2)) {
                     connection_found = true;
                 };
 

@@ -1,7 +1,8 @@
-
 /// Input nodes are the ones that recieve data first, 
 /// then nodes will propagate data forward until it
 /// may reach an output node
+
+#[derive(PartialEq, Eq)]
 pub enum NodeGeneType {
     Input, Ouptut, Regular
 }
