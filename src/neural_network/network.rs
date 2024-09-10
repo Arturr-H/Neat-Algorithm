@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fmt::Debug, hash::Hash};
+use std::{collections::HashSet, fmt::Debug, hash::Hash, process::Output};
 use rand::{thread_rng, Rng};
 use super::{connection_gene::ConnectionGene, node_gene::{NodeGene, NodeGeneType}};
 
@@ -91,7 +91,7 @@ impl NeatNetwork {
     /// Will randomly add a new gene
     pub fn mutate(&mut self) -> () {
         let mut rng = thread_rng();
-        let will_be_node_gene = thread_rng().gen_bool(0.5);
+        let will_be_node_gene = thread_rng().gen_bool(1.0);
         
         if will_be_node_gene {
             // self.node_genes.push(NodeGene::new(
@@ -100,18 +100,30 @@ impl NeatNetwork {
             // ));
 
             // choose an random existing connection
-            // disable the chosen connection
-            
-            
+            let length = self.connection_genes.len();
+            let gene = &mut self.connection_genes[rng.gen_range(0..length)];
 
-            // create a new connection between the newly
-            // created node and the input with a weight of 1 
-
-            // create a new connection between the newly created
-            // node and the ouput with the weight of the chosen connection
-            
+            gene.set_enabled(false);
+            self.node_genes.push(NodeGene::new(
+                self.node_gene_index,
+                NodeGeneType::Regular,
+            ));
 
             self.node_gene_index += 1;
+
+            let input_connection = Self::create_connection(gene.node_in(), self.node_gene_index, 1.0, &mut self.occupied_connections);
+            let output_connection = Self::create_connection(self.node_gene_index, gene.node_out(), gene.weight(), &mut self.occupied_connections);
+
+            match (input_connection, output_connection) {
+                (Some(input), Some(output)) => {
+                    self.connection_genes.push(input);
+                    self.connection_genes.push(output);
+                },
+
+                _ => {
+
+                }
+            }
         }
         // Connection gene
         else {

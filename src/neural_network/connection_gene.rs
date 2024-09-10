@@ -24,6 +24,11 @@ impl ConnectionGene {
     pub fn node_out(&self) -> usize { self.node_out }
     pub fn weight(&self) -> f32 { self.weight }
     pub fn enabled(&self) -> bool { self.enabled }
+
+    //setters
+    pub fn set_enabled(&mut self, enabled: bool) {
+        self.enabled = enabled
+    }
 }
 
 impl std::fmt::Debug for ConnectionGene {
