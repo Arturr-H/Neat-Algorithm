@@ -133,6 +133,18 @@ impl NeatNetwork {
         }
     }
 
+    pub fn evolve(&mut self) {
+        //tar in parent 1 och parent 2. 
+        
+        // Min() av antal innovation numbers i vardera nätverk.
+        // Denna siffra representerar antalet innovation numbers i det utvecklade nätverket.
+        // Alla connections/nodes med en innovation number *högre* än detta markeras som "excess" och används helt enkelt inte.
+    
+        // resterade innovation numbers benäms som "disjoint".
+        // Dessa disjoints blir pushade till det nya nätverket så att 
+        // det finns kontinuitet hela vägen från innovation number 0..kortaste längden innovation numbers
+    }
+
     /// Tries to create a new connection
     fn create_connection(
         node_in: usize,
