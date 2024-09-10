@@ -65,12 +65,15 @@ impl NeatNetwork {
         let mut connection_genes = Vec::new();
         let mut occupied_connections = HashSet::new();
         let mut rng = thread_rng();
-        for i in 0..3 {
-            let node1 = rng.gen_range(0..input); // input
-            let node2 = rng.gen_range(input..(input+output)); // output
 
-            occupied_connections.insert((node1, node2));
-            connection_genes.push(ConnectionGene::new(node1, node2, rng.gen_range(0.05..0.2)));
+        for i in 0..3 {
+            let node_in = rng.gen_range(0..input); // input
+            let node_out = rng.gen_range(input..(input+output)); // output
+
+            let connection = Self::create_connection(node_in, node_out, rng.gen_range(0.05..0.2), &mut occupied_connections);
+            if let Some(conn) = connection {
+                connection_genes.push(conn);
+            }
         }
 
         Self {
@@ -115,26 +118,43 @@ impl NeatNetwork {
             // TODO: Instead of creating connections between
             // TODO: output and input, try to also create some
             // TODO: between the "dynamic" hidden node genes.
-            let mut connection_found = false;
-            let mut connection_attempts = 0;
-            let mut node1 = 0;
-            let mut node2 = 0;
 
-            while !connection_found {
-                node1 = rng.gen_range(0..self.input_size); // input
-                node2 = rng.gen_range(self.input_size..(self.input_size+self.output_size)); // output
-                if !self.occupied_connections.contains(&(node1, node2)) {
-                    connection_found = true;
-                };
+            let node_in = rng.gen_range(0..self.input_size); // input
+            let node_out = rng.gen_range(self.input_size..(self.input_size+self.output_size)); // output
 
-                if connection_attempts > 10 {
-                    break;
-                }
+            let connection = Self::create_connection(node_in, node_out, rng.gen_range(0.05..0.2), &mut self.occupied_connections);
+            if let Some(conn) = connection {
+                self.connection_genes.push(conn);
             }
+        }
+    }
 
-            if connection_found {
-                self.connection_genes.push(ConnectionGene::new(node1, node2, rng.gen_range(0.05..0.2)))
+    /// Tries to create a new connection
+    fn create_connection(
+        node_in: usize,
+        node_out: usize,
+        weight: f32,
+        occupied_connections: &mut HashSet<(usize, usize)>
+    ) -> Option<ConnectionGene> {
+        let mut connection_found = false;
+        let mut connection_attempts = 0;
+        let mut node1 = 0;
+        let mut node2 = 0;
+
+        while !connection_found {
+            if !occupied_connections.contains(&(node_in, node_out)) {
+                connection_found = true;
+            };
+
+            if connection_attempts > 10 {
+                break;
             }
+        }
+
+        if connection_found {
+            Some(ConnectionGene::new(node_in, node_out, weight))
+        }else {
+            None
         }
     }
 
