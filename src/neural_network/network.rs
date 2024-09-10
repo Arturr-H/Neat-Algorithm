@@ -66,7 +66,7 @@ impl NeatNetwork {
         let mut occupied_connections = HashSet::new();
         let mut rng = thread_rng();
 
-        for i in 0..3 {
+        for i in 0..2 {
             let node_in = rng.gen_range(0..input); // input
             let node_out = rng.gen_range(input..(input+output)); // output
 
@@ -109,10 +109,10 @@ impl NeatNetwork {
                 NodeGeneType::Regular,
             ));
 
-            self.node_gene_index += 1;
-
             let input_connection = Self::create_connection(gene.node_in(), self.node_gene_index, 1.0, &mut self.occupied_connections);
             let output_connection = Self::create_connection(self.node_gene_index, gene.node_out(), gene.weight(), &mut self.occupied_connections);
+
+            self.node_gene_index += 1;
 
             match (input_connection, output_connection) {
                 (Some(input), Some(output)) => {
