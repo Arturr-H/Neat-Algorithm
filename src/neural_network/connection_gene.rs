@@ -28,6 +28,6 @@ impl ConnectionGene {
 
 impl std::fmt::Debug for ConnectionGene {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}-{}", self.node_in, self.node_out)
+        write!(f, "Conn({}-{} ({:.2}) {{{}}})", self.node1, self.node2, self.weight, self.enabled)
     }
 }
