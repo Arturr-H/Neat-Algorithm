@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fmt::Debug, hash::Hash, process::Output};
+use std::{collections::{HashMap, HashSet, VecDeque}, fmt::Debug, hash::Hash, process::Output};
 use rand::{thread_rng, Rng};
 use super::{connection_gene::ConnectionGene, node_gene::{NodeGene, NodeGeneType}};
 
@@ -66,13 +66,18 @@ impl NeatNetwork {
         let mut occupied_connections = HashSet::new();
         let mut rng = thread_rng();
 
-        for i in 0..2 {
+        // TODO 
+        for i in 0..3 {
             let node_in = rng.gen_range(0..input); // input
             let node_out = rng.gen_range(input..(input+output)); // output
 
             let connection = Self::create_connection(node_in, node_out, rng.gen_range(0.05..0.2), &mut occupied_connections);
             if let Some(conn) = connection {
                 connection_genes.push(conn);
+
+                // Register that we've created a new incoming weight
+                // for the new node, and the updated node
+                node_genes[node_out].register_new_incoming(connection_genes.len() - 1);
             }
         }
 
@@ -96,6 +101,8 @@ impl NeatNetwork {
         if will_be_node_gene {
             let length = self.connection_genes.len();
             let gene = &mut self.connection_genes[rng.gen_range(0..length)];
+            let gene_node_in = gene.node_in();
+            let gene_node_out = gene.node_out();
 
             gene.set_enabled(false);
             self.node_genes.push(NodeGene::new(
@@ -103,19 +110,24 @@ impl NeatNetwork {
                 NodeGeneType::Regular,
             ));
 
-            let input_connection = Self::create_connection(gene.node_in(), self.node_gene_index, 1.0, &mut self.occupied_connections);
-            let output_connection = Self::create_connection(self.node_gene_index, gene.node_out(), gene.weight(), &mut self.occupied_connections);
-
-            self.node_gene_index += 1;
+            let input_connection = Self::create_connection(gene_node_in, self.node_gene_index, 1.0, &mut self.occupied_connections);
+            let output_connection = Self::create_connection(self.node_gene_index, gene_node_out, gene.weight(), &mut self.occupied_connections);
 
             match (input_connection, output_connection) {
                 (Some(input), Some(output)) => {
                     self.connection_genes.push(input);
                     self.connection_genes.push(output);
+
+                    // Register that we've created a new incoming weight
+                    // for the new node, and the updated node
+                    self.node_genes[self.node_gene_index].register_new_incoming(self.connection_genes.len() - 2);
+                    self.node_genes[gene_node_out].register_new_incoming(self.connection_genes.len() - 1);
                 },
 
                 _ => {}
             }
+
+            self.node_gene_index += 1;
         }
         // Connection gene
         else {
@@ -142,8 +154,6 @@ impl NeatNetwork {
     ) -> Option<ConnectionGene> {
         let mut connection_found = false;
         let mut connection_attempts = 0;
-        let mut node1 = 0;
-        let mut node2 = 0;
 
         while !connection_found {
             if !occupied_connections.contains(&(node_in, node_out)) {
@@ -153,9 +163,12 @@ impl NeatNetwork {
             if connection_attempts > 10 {
                 break;
             }
+
+            connection_attempts += 1;
         }
 
         if connection_found {
+            occupied_connections.insert((node_in, node_out));
             Some(ConnectionGene::new(node_in, node_out, weight))
         }else {
             None
@@ -164,29 +177,41 @@ impl NeatNetwork {
 
     /// Takes the input vector, and propagates it through all
     /// node genes and connections and returns the output layer.
-    pub fn propagate(&self, input: Vec<f32>) -> Vec<f32> {
-        // TODO: Check for better bias initialization
-        let bias = 0.1;
-        let mut output = vec![bias; self.output_size];
+    pub fn calculate_output(&mut self, input: Vec<f32>) -> Vec<f32> {
+        assert!(input.len() == self.input_size);
 
-        for (index, input_value) in input.iter().enumerate() {
-            
+        // TODO: IMPORTANT! After doing the instructions from the todo below, we need to 
+        // TODO: IMPORTANT! get all nodes with type input, instead of self.node_genes[index] I THINK but not sure
+        for (index, value) in input.iter().enumerate() {
+            self.node_genes[index].set_activation(*value);
         }
 
-        todo!()
-    }
+        // TODO: IMPORTANT!: REPLACE THE BELOW RANGE 0..self.node_genes.len() WITH THE TOPOLOGY ORDER
+        // TODO: IMPORTANT!: REPLACE THE BELOW RANGE 0..self.node_genes.len() WITH THE TOPOLOGY ORDER
+        // TODO: IMPORTANT!: REPLACE THE BELOW RANGE 0..self.node_genes.len() WITH THE TOPOLOGY ORDER
+        // TODO: IMPORTANT!: REPLACE THE BELOW RANGE 0..self.node_genes.len() WITH THE TOPOLOGY ORDER
+        // TODO: IMPORTANT!: REPLACE THE BELOW RANGE 0..self.node_genes.len() WITH THE TOPOLOGY ORDER
+        for index in 0..self.node_genes.len() {
+            let node = &self.node_genes[index];
 
-    pub fn topological_sort(&self) -> Vec<Vec<usize>> {
-        // First vector indicates each input node, and the
-        // nested vec indicates a sorted list of indexes to 
-        // nodes that are connected
-        let mut nodes_sorted: Vec<Vec<usize>> = vec![Vec::new(); self.input_size];
+            // Skip input nodes
+            if node.node_type() == NodeGeneType::Input { continue; };
 
-        for node_index in 0..self.input_size {
-            self.search_connection(node_index, &mut nodes_sorted[node_index]);
+            // TODO: Look into what sum should start at (bias)
+            let mut sum = 0.1;
+            for incoming_connection_index in node.incoming_connection_indexes() {
+                let connection = &self.connection_genes[*incoming_connection_index];
+                if connection.enabled() == false { continue; }
+
+                let node_in = self.node_genes[connection.node_in()].activation();
+                sum += node_in * connection.weight();
+            }
+
+            self.node_genes[index].set_activation(sum);
         }
 
-        nodes_sorted
+        self.node_genes[self.input_size..(self.input_size + self.output_size)]
+            .iter().map(|e| e.activation()).collect()
     }
 
     fn search_connection(&self, node_index: usize, nodes: &mut Vec<usize>) -> () {
