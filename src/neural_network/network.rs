@@ -201,29 +201,31 @@ impl NeatNetwork {
     pub fn calculate_output(&mut self, input: Vec<f32>) -> Vec<f32> {
         assert!(input.len() == self.input_size);
 
-        // TODO: IMPORTANT! After doing the instructions from the todo below, we need to 
-        // TODO: IMPORTANT! get all nodes with type input, instead of self.node_genes[index] I THINK but not sure
+        // Set activation for input nodes
         for (index, value) in input.iter().enumerate() {
             self.node_genes[index].set_activation(*value);
         }
 
-        // TODO: IMPORTANT!: REPLACE THE BELOW RANGE 0..self.node_genes.len() WITH THE TOPOLOGY ORDER
-        // TODO: IMPORTANT!: REPLACE THE BELOW RANGE 0..self.node_genes.len() WITH THE TOPOLOGY ORDER
-        // TODO: IMPORTANT!: REPLACE THE BELOW RANGE 0..self.node_genes.len() WITH THE TOPOLOGY ORDER
-        // TODO: IMPORTANT!: REPLACE THE BELOW RANGE 0..self.node_genes.len() WITH THE TOPOLOGY ORDER
-        // TODO: IMPORTANT!: REPLACE THE BELOW RANGE 0..self.node_genes.len() WITH THE TOPOLOGY ORDER
         // Iterates through all neurons (non input layer) and sums all the incoming nodes * weight
         // and adds a bias. 
-        for index in 0..self.node_genes.len() {
+        let topology_order = self.topological_sort().unwrap();
+        for index in topology_order {
             let node = &self.node_genes[index];
 
             // Skip input nodes
             if node.node_type() == NodeGeneType::Input { continue; };
 
-            // TODO
-            // TODO
-            // TODO
-            // TODO
+            // TODO: Fix bias init (?)
+            let mut sum = 0.1;
+            for incoming_index in node.incoming_connection_indexes() {
+                let connection = &self.connection_genes[*incoming_index];
+                if !connection.enabled() { continue; };
+
+                let prev_node = &self.node_genes[connection.node_in()];
+                sum += prev_node.activation() * connection.weight();
+            }
+
+            self.node_genes[index].set_activation(sum);
         }
 
         self.node_genes[self.input_size..(self.input_size + self.output_size)]
