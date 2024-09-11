@@ -75,9 +75,8 @@ impl NeatNetwork {
             if let Some(conn) = connection {
                 connection_genes.push(conn);
 
-                // Register that we've created a new incoming weight
-                // for the new node, and the updated node
-                node_genes[node_out].register_new_incoming(connection_genes.len() - 1);
+                // Register that we've created a new outgoing weight for the new node
+                node_genes[node_in].register_new_outgoing(connection_genes.len() - 1);
             }
         }
 
@@ -120,8 +119,8 @@ impl NeatNetwork {
 
                     // Register that we've created a new incoming weight
                     // for the new node, and the updated node
-                    self.node_genes[self.node_gene_index].register_new_incoming(self.connection_genes.len() - 2);
-                    self.node_genes[gene_node_out].register_new_incoming(self.connection_genes.len() - 1);
+                    self.node_genes[gene_node_in].register_new_outgoing(self.connection_genes.len() - 2);
+                    self.node_genes[self.node_gene_index].register_new_outgoing(self.connection_genes.len() - 1);
                 },
 
                 _ => {}
@@ -203,23 +202,18 @@ impl NeatNetwork {
         // TODO: IMPORTANT!: REPLACE THE BELOW RANGE 0..self.node_genes.len() WITH THE TOPOLOGY ORDER
         // TODO: IMPORTANT!: REPLACE THE BELOW RANGE 0..self.node_genes.len() WITH THE TOPOLOGY ORDER
         // TODO: IMPORTANT!: REPLACE THE BELOW RANGE 0..self.node_genes.len() WITH THE TOPOLOGY ORDER
+        // Iterates through all neurons (non input layer) and sums all the incoming nodes * weight
+        // and adds a bias. 
         for index in 0..self.node_genes.len() {
             let node = &self.node_genes[index];
 
             // Skip input nodes
             if node.node_type() == NodeGeneType::Input { continue; };
 
-            // TODO: Look into what sum should start at (bias)
-            let mut sum = 0.1;
-            for incoming_connection_index in node.incoming_connection_indexes() {
-                let connection = &self.connection_genes[*incoming_connection_index];
-                if connection.enabled() == false { continue; }
-
-                let node_in = self.node_genes[connection.node_in()].activation();
-                sum += node_in * connection.weight();
-            }
-
-            self.node_genes[index].set_activation(sum);
+            // TODO
+            // TODO
+            // TODO
+            // TODO
         }
 
         self.node_genes[self.input_size..(self.input_size + self.output_size)]

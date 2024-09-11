@@ -25,9 +25,9 @@ pub struct NodeGene {
     /// calculate every time
     activation: f32,
 
-    /// Indexes of connections where node_out is the 
+    /// Indexes of connections where node_in is the 
     /// `id` field in this struct.
-    incoming_connection_indexes: Vec<usize>
+    outgoing_connection_indexes: Vec<usize>
 }
 
 impl NodeGene {
@@ -37,7 +37,7 @@ impl NodeGene {
             bias: 0.1,
             node_type,
             activation: 0.,
-            incoming_connection_indexes: Vec::new()
+            outgoing_connection_indexes: Vec::new()
         }
     }
 
@@ -46,15 +46,15 @@ impl NodeGene {
     pub fn bias(&self) -> f32 { self.bias }
     pub fn node_type(&self) -> NodeGeneType { self.node_type }
     pub fn activation(&self) -> f32 { self.activation }
-    pub fn incoming_connection_indexes(&self) -> &Vec<usize> { &self.incoming_connection_indexes }
+    pub fn outgoing_connection_indexes(&self) -> &Vec<usize> { &self.outgoing_connection_indexes }
 
     // Setters
     pub fn set_activation(&mut self, to: f32) -> () { self.activation = to; }
 
-    /// Appends a new incoming connection gene to the list
-    pub fn register_new_incoming(&mut self, index: usize) -> () {
-        assert!(!self.incoming_connection_indexes.contains(&index));
-        self.incoming_connection_indexes.push(index);
+    /// Appends a new outgoing connection gene to the list
+    pub fn register_new_outgoing(&mut self, index: usize) -> () {
+        assert!(!self.outgoing_connection_indexes.contains(&index));
+        self.outgoing_connection_indexes.push(index);
     }
 }
 
