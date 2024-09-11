@@ -67,7 +67,7 @@ impl NeatNetwork {
         let mut rng = thread_rng();
 
         // TODO 
-        for i in 0..3 {
+        for i in 0..0 {
             let node_in = rng.gen_range(0..input); // input
             let node_out = rng.gen_range(input..(input+output)); // output
 
@@ -76,7 +76,7 @@ impl NeatNetwork {
                 connection_genes.push(conn);
 
                 // Register that we've created a new outgoing weight for the new node
-                node_genes[node_in].register_new_outgoing(connection_genes.len() - 1);
+                node_genes[node_out].register_new_incoming(connection_genes.len() - 1);
             }
         }
 
@@ -92,11 +92,21 @@ impl NeatNetwork {
         }
     }
 
+    pub fn debug_add_node(&mut self) -> () {
+        self.node_genes.push(NodeGene::new(self.node_gene_index, NodeGeneType::Regular));
+        self.node_gene_index += 1;
+    }
+    pub fn debug_add_weight(&mut self, node_in: usize, node_out: usize) -> () {
+        self.connection_genes.push(ConnectionGene::new(node_in, node_out, 0.5));
+        self.node_genes[node_out].register_new_incoming(self.connection_genes.len() - 1);
+    }
+
     /// Will randomly add a new gene
     pub fn mutate(&mut self) -> () {
         let mut rng = thread_rng();
         let will_be_node_gene = thread_rng().gen_bool(0.5);
         
+        // Split weight in half and place node in middle
         if will_be_node_gene {
             let length = self.connection_genes.len();
             let gene = &mut self.connection_genes[rng.gen_range(0..length)];
@@ -119,8 +129,8 @@ impl NeatNetwork {
 
                     // Register that we've created a new incoming weight
                     // for the new node, and the updated node
-                    self.node_genes[gene_node_in].register_new_outgoing(self.connection_genes.len() - 2);
-                    self.node_genes[self.node_gene_index].register_new_outgoing(self.connection_genes.len() - 1);
+                    self.node_genes[self.node_gene_index].register_new_incoming(self.connection_genes.len() - 2);
+                    self.node_genes[gene_node_out].register_new_incoming(self.connection_genes.len() - 1);
                 },
 
                 _ => {}
@@ -229,15 +239,40 @@ impl NeatNetwork {
             .iter().map(|e| e.activation()).collect()
     }
 
-    fn search_connection(&self, node_index: usize, nodes: &mut Vec<usize>) -> () {
-        for connection in &self.connection_genes {
-            /* Found a connection to another node from current */
-            if connection.node_in() == node_index {
-                self.search_connection(connection.node_out(), nodes)
+    /// The degree of a node is the amount of weights which are connected to it. And the
+    /// indegree is the number of weights coming in, and outdegree are the number going out.
+    pub fn topological_sort(&self) -> Option<Vec<usize>> {
+        let num_nodes = self.node_genes.len();
+        let mut in_degree = vec![0; num_nodes];
+        let mut adj_list = vec![vec![]; num_nodes];
+
+        for conn in &self.connection_genes {
+            if conn.enabled() {
+                adj_list[conn.node_in()].push(conn.node_out());
+                in_degree[conn.node_out()] += 1;
             }
         }
 
-        nodes.push(node_index);
+        let mut stack: Vec<usize> = (0..num_nodes).filter(|&i| in_degree[i] == 0).collect();
+        let mut sorted = vec![];
+
+        while let Some(node) = stack.pop() {
+            sorted.push(node);
+
+            for &neighbor in &adj_list[node] {
+                in_degree[neighbor] -= 1;
+                if in_degree[neighbor] == 0 {
+                    stack.push(neighbor);
+                }
+            }
+        }
+
+        if sorted.len() == num_nodes {
+            Some(sorted)
+        } else {
+            // Graph has a cycle, no valid topological sort
+            None
+        }
     }
 }
 

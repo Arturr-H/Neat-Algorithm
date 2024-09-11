@@ -25,7 +25,7 @@ impl ConnectionGene {
     pub fn weight(&self) -> f32 { self.weight }
     pub fn enabled(&self) -> bool { self.enabled }
 
-    //setters
+    // Setters
     pub fn set_enabled(&mut self, enabled: bool) {
         self.enabled = enabled
     }
