@@ -144,7 +144,7 @@ impl NeatNetwork {
         }
     }
 
-    pub fn evolve(&mut self) {
+    pub fn crossover(&mut self, network1: NeatNetwork, network2: NeatNetwork) -> NeatNetwork {
         //tar in parent 1 och parent 2. 
         
         // Min() av antal innovation numbers i vardera nätverk.
@@ -154,6 +154,15 @@ impl NeatNetwork {
         // resterade innovation numbers benäms som "disjoint".
         // Dessa disjoints blir pushade till det nya nätverket så att 
         // det finns kontinuitet hela vägen från innovation number 0..kortaste längden innovation numbers
+
+
+        // börja med att kombinera "commons", nodes och connections som både networks har.
+        // Connections / Nodes med lika innovation number kommer inte förändras, då de är samma
+
+
+        //disjoints är valda från nätverket med högre fitness.
+
+        todo!()
     }
 
     /// Tries to create a new connection
