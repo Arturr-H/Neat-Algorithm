@@ -28,17 +28,21 @@ pub struct NodeGene {
 
     /// Indexes of connections where node_out is the 
     /// `id` field in this struct.
-    incoming_connection_indexes: Vec<usize>
+    incoming_connection_indexes: Vec<usize>,
+
+    /// The local innovation number
+    innovation_number: usize,
 }
 
 impl NodeGene {
-    pub fn new(index: usize, node_type: NodeGeneType) -> Self {
+    pub fn new(index: usize, node_type: NodeGeneType, innovation_number: usize) -> Self {
         Self {
             id: index,
             bias: 0.1,
             node_type,
             activation: 0.,
-            incoming_connection_indexes: Vec::new()
+            incoming_connection_indexes: Vec::new(),
+            innovation_number
         }
     }
 
@@ -49,6 +53,7 @@ impl NodeGene {
     pub fn activation(&self) -> f32 { self.activation }
     pub fn incoming_connection_indexes(&self) -> &Vec<usize> { &self.incoming_connection_indexes }
     pub fn is_indegree_zero(&self) -> bool { self.incoming_connection_indexes.is_empty() }
+    pub fn innovation_number(&self) -> usize { self.innovation_number }
 
     // Setters
     pub fn set_activation(&mut self, to: f32) -> () { self.activation = to; }
