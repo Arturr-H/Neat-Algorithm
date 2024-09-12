@@ -1,6 +1,6 @@
-use std::{collections::HashMap, sync::{Arc, Mutex}};
-
-use crate::neural_network::network::NeatNetwork;
+use std::{collections::{HashMap, HashSet}, sync::{Arc, Mutex}};
+use crate::{neural_network::network::NeatNetwork, utils::Timer};
+use super::species::Species;
 
 /// Struct to make a set amount of networks
 /// compete against eachother.
@@ -115,24 +115,71 @@ impl Evolution {
 
     /// Runs the networks through a generation of mutation and selection
     pub fn generation(&mut self) -> () {
-        // First mutate every network
-        for net in self.networks.iter_mut() {
-            net.mutate();
-        }
-    
-        // Evaluate the best networks
-        let mut performances: Vec<f32> = Vec::new();
-        for (index, net) in self.networks.iter_mut().enumerate() {
-            performances.push((self.fitness_function)(net));
-        }
-        let top_5 = top_n_with_indices(&performances, 5);
-
-        dbg!(top_5);
+        Species::new(NeatNetwork::new(
+            self.input_nodes, self.output_nodes,
+            self.global_innovation_number.clone(),
+            self.global_occupied_connections.clone()
+        )).eliminate(self.fitness_function);
     }
-}
 
-fn top_n_with_indices(numbers: &Vec<f32>, n: usize) -> Vec<usize> {
-    let mut indexed_numbers: Vec<(usize, &f32)> = numbers.iter().enumerate().collect();
-    indexed_numbers.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
-    indexed_numbers.into_iter().take(n).map(|(i, _)| i).collect()
+    /// Distance
+    pub fn distance(net1: &NeatNetwork, net2: &NeatNetwork) -> f32 {
+        let net1_highest = net1.get_highest_local_innovation();
+        let net2_highest = net2.get_highest_local_innovation();
+
+        // Excess genes are the difference between the maximum
+        // local innovation number of each network. 
+        let mut excess = 0.;
+        let mut highest_local_innovation = 0;
+        if net1_highest > net2_highest {
+            highest_local_innovation = net1_highest;
+            for gene in net1.get_genes() {
+                if gene.innovation_number() > net2_highest { excess += 1.; }
+            }
+        }else {
+            highest_local_innovation = net2_highest;
+            for gene in net2.get_genes() {
+                if gene.innovation_number() > net1_highest { excess += 1.; }
+            }
+        }
+
+        // Average weight of matching genes
+        let mut total_weight_diff = 0.0;
+        let mut matching_weights = 0;
+
+        // Disjoint genes are genes that do not share historical
+        // markings with the other network
+        let mut disjoint = 0.;
+
+        // (node_in, node_out), weight
+        let mut net1_genes = HashMap::new();
+
+        for gene in net1.get_genes() {
+            if gene.innovation_number() <= highest_local_innovation {
+                net1_genes.insert((gene.node_in(), gene.node_out()), gene.weight());
+            }
+        }
+
+        for gene in net2.get_genes() {
+            if gene.innovation_number() <= highest_local_innovation {
+                if let Some(weight) = net1_genes.get(&(gene.node_in(), gene.node_out())) {
+                    matching_weights += 1;
+                    total_weight_diff += (weight - gene.weight()).abs();
+                }else {
+                    disjoint += 1.;
+                }
+            }
+        }
+
+        let average_weight_diff = total_weight_diff / matching_weights as f32;
+
+        // TODO: Do constants
+        let c1 = 0.5;
+        let c2 = 0.5;
+        let c3 = 0.5;
+        let n = net2.get_genes().len().max(net1.get_genes().len()) as f32;
+        let distance = (c1 * excess) / n + (c2 * disjoint) / n + c3 * average_weight_diff;
+
+        distance
+    }
 }
