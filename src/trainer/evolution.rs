@@ -1,5 +1,5 @@
-use std::{collections::{HashMap, HashSet}, sync::{Arc, Mutex}};
-use rand::Rng;
+use std::{collections::{HashMap, HashSet}, hash::Hash, sync::{Arc, Mutex}};
+use rand::{thread_rng, Rng};
 
 use crate::neural_network::network::{self, NeatNetwork};
 use super::species::Species;
@@ -124,34 +124,62 @@ impl Evolution {
         )).eliminate(self.fitness_function);
     }
 
-    pub fn crossover(network1: NeatNetwork, network2: NeatNetwork) -> NeatNetwork {
-        //tar in parent 1 och parent 2. 
-        let net1_innovations: HashSet<usize> = network1.get_genes().iter().map(|e| e.innovation_number()).collect();
-        let net2_innovations: HashSet<usize> = network2.get_genes().iter().map(|e| e.innovation_number()).collect();
+    pub fn crossover(&self, mut network1: NeatNetwork, mut network2: NeatNetwork) -> NeatNetwork {
+        let mut rng = thread_rng();
+        let net1_genes = network1.get_genes().clone();
+        let net2_genes = network2.get_genes().clone();
+        let net1_innovations: HashSet<usize> = net1_genes.iter().map(|e| e.innovation_number()).collect();
+        let net2_innovations: HashSet<usize> = net2_genes.iter().map(|e| e.innovation_number()).collect();
+        let network_1_highest = network1.get_highest_local_innovation();
+        let network_2_highest = network2.get_highest_local_innovation();
+        let highest = network_1_highest.max(network_2_highest);
+        let lowest = network_1_highest.min(network_2_highest);
 
-        let mut common_innovations: HashSet<usize> = HashSet::new();
-        // börja med att kombinera "commons", nodes och connections som både networks har.
-        // Connections / Nodes med lika innovation number kommer inte förändras, då de är samma
-        for common in net1_innovations.intersection(&net2_innovations) {
-            common_innovations.insert(*common);
-            let mut chosen_network = rand::thread_rng().gen_bool(0.5);
-            
-            if chosen_network {
-                // for gene in net1.get_genes() {
-                //     net1_genes.insert((gene.node_in(), gene.node_out()), gene.weight());
-                // }
-            } else {
-                //- add the weight from that index to the new network
-            }
-        }
-        println!("{:?}", common_innovations);
-        println!("{:?}", network1.get_genes().iter().map(|e| e.innovation_number()).collect::<Vec<usize>>());
-
-        //get which network has higher fitness
-        //put the uniques in the new network
-
+        let mut net1_score = (self.fitness_function)(&mut network1);
+        let mut net2_score = (self.fitness_function)(&mut network2);
         
+        let mut new_genes = Vec::with_capacity(highest);
+        for i in 0..highest {
+            let is_in_net1 = net1_innovations.contains(&i);
+            let is_in_net2 = net2_innovations.contains(&i);
+            
+            if is_in_net1 && is_in_net2 {
+                if rng.gen_bool(0.5) {
+                    new_genes.push(net1_genes[i].clone());
+                }else {
+                    new_genes.push(net2_genes[i].clone());
+                }
+            }
 
+            // Disjoints
+            else if is_in_net1 && network_1_highest < network_2_highest && net1_innovations.contains(&i) {
+                println!("add disjoint net1 {:?}", net1_genes[i].clone());
+                new_genes.push(net1_genes[i].clone());
+            }
+            else if is_in_net2 && network_2_highest < network_1_highest && net2_innovations.contains(&i) {
+                println!("add disjoint net2 {:?}", net2_genes[i].clone());
+                new_genes.push(net2_genes[i].clone());
+            }
+
+            else {
+                // Excess
+                if network_1_highest > network_2_highest && net1_score > net2_score {
+                    if net1_innovations.contains(&i) {
+                        new_genes.push(net1_genes[i].clone());
+                        println!("Excess from net 1")
+                    }
+                }
+                else if network_1_highest < network_2_highest && net1_score < net2_score {
+                    if net2_innovations.contains(&i) {
+                        new_genes.push(net2_genes[i].clone());
+                        println!("Excess from net 2")
+                    }
+                }
+            }
+        }        
+        
+        println!("{:?}", new_genes);
+        // println!("{:?}", common_innovations);
         todo!()
     }
 
