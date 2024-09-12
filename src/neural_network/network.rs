@@ -67,7 +67,7 @@ impl NeatNetwork {
         let mut rng = thread_rng();
 
         // TODO 
-        for i in 0..0 {
+        for i in 0..rng.gen_range(0..(input + output)).max(1) {
             let node_in = rng.gen_range(0..input); // input
             let node_out = rng.gen_range(input..(input+output)); // output
 
