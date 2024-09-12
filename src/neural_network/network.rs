@@ -83,7 +83,7 @@ impl NeatNetwork {
         // Create a connection between every single input and output node
         for input_idx in 0..input {
             for output_idx in input..(input + output) {
-                let (connection, should_increment) = Self::create_connection(
+                let (connection, _) = Self::create_connection(
                     input_idx, output_idx,
                     rng.gen_range(0.05..0.2),
                     global_occupied_connections.clone(),
@@ -91,12 +91,11 @@ impl NeatNetwork {
                     local_innovation
                 );
 
-                if should_increment { local_innovation += 1 };
+                // We don't need to know if we should increment
+                // because it should always be true for initializing
+                // weights
+                local_innovation += 1;
                 if let Some(conn) = connection { connection_genes.push(conn); };
-
-                // We know for sure that these connections exist
-                // and won't be duplicates because of our for-loops
-                // local_occupied_connections.insert((input_idx, output_idx));
                 
                 // Register that we've created a new outgoing weight for the new node
                 node_genes[output_idx].register_new_incoming(connection_genes.len() - 1);
