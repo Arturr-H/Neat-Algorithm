@@ -6,27 +6,34 @@ mod trainer;
 mod utils;
 
 /* Imports */
-use std::time::Duration;
+use std::{collections::HashMap, sync::{Arc, Mutex}, time::Duration};
 use neural_network::network::NeatNetwork;
 use block_blast::board::{self, board::Board, board_error::PlacementError, cell::Cell};
 use trainer::evolution::{Evolution, EvolutionBuilder};
 
 fn main() -> () {
-    let mut evolution = Evolution::new()
-        .batch_size(100)
-        .with_input_nodes(64 /* All cells */ + 36 /* Tiles to choose from */)
-        .with_output_nodes(8/*x*/ + 8/*y - Coordinate for tile placement */ + 3 /* What tile buffer to choose */)
-        .set_fitness_function(score_network)
-        .build()
-        .generation();
+    // let mut _evolution = Evolution::new()
+    //     .batch_size(100)
+    //     .with_input_nodes(64 /* All cells / + 36 / Tiles to choose from /)
+    //     .with_output_nodes(8/x/ + 8/y - Coordinate for tile placement / + 3 / What tile buffer to choose */)
+    //     .set_fitness_function(score_network)
+    //     .build();
 
-    let net = NeatNetwork::new(5, 7);
-    net.create_python_debug_plotting();
-
-    let xor = vec![((0.0, 0.0), 0.0),
-                    ((1.0, 0.0), 1.0),
-                    ((0.0, 1.0), 1.0),
-                    ((1.0, 1.0), 0.0)];
+    let mut global_innovation = Arc::new(Mutex::new(0));
+    let mut net1 = NeatNetwork::new(2, 3, global_innovation.clone(), Arc::new(Mutex::new(HashMap::new())));
+    net1.mutate();
+    net1.mutate();
+    net1.mutate();
+    net1.mutate();
+    net1.mutate();
+    net1.mutate();
+    let mut net2 = NeatNetwork::new(2, 3, global_innovation.clone(), Arc::new(Mutex::new(HashMap::new())));
+    
+    Evolution::crossover(net1, net2);
+    // let xor = vec![((0.0, 0.0), 0.0),
+    //                 ((1.0, 0.0), 1.0),
+    //                 ((0.0, 1.0), 1.0),
+    //                 ((1.0, 1.0), 0.0)];
 
     // let mut all_values = Vec::new();
     // for net in networks.iter_mut() {

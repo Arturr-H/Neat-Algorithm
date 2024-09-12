@@ -1,5 +1,7 @@
 use std::{collections::{HashMap, HashSet}, sync::{Arc, Mutex}};
-use crate::{neural_network::network::NeatNetwork, utils::Timer};
+use rand::Rng;
+
+use crate::neural_network::network::{self, NeatNetwork};
 use super::species::Species;
 
 /// Struct to make a set amount of networks
@@ -122,6 +124,38 @@ impl Evolution {
         )).eliminate(self.fitness_function);
     }
 
+    pub fn crossover(network1: NeatNetwork, network2: NeatNetwork) -> NeatNetwork {
+        //tar in parent 1 och parent 2. 
+        let net1_innovations: HashSet<usize> = network1.get_genes().iter().map(|e| e.innovation_number()).collect();
+        let net2_innovations: HashSet<usize> = network2.get_genes().iter().map(|e| e.innovation_number()).collect();
+
+        let mut common_innovations: HashSet<usize> = HashSet::new();
+        // börja med att kombinera "commons", nodes och connections som både networks har.
+        // Connections / Nodes med lika innovation number kommer inte förändras, då de är samma
+        for common in net1_innovations.intersection(&net2_innovations) {
+            common_innovations.insert(*common);
+            let mut chosen_network = rand::thread_rng().gen_bool(0.5);
+            
+            if chosen_network {
+                // for gene in net1.get_genes() {
+                //     net1_genes.insert((gene.node_in(), gene.node_out()), gene.weight());
+                // }
+            } else {
+                //- add the weight from that index to the new network
+            }
+        }
+        println!("{:?}", common_innovations);
+        println!("{:?}", network1.get_genes().iter().map(|e| e.innovation_number()).collect::<Vec<usize>>());
+
+        //get which network has higher fitness
+        //put the uniques in the new network
+
+        
+
+        todo!()
+    }
+
+
     /// Distance
     pub fn distance(net1: &NeatNetwork, net2: &NeatNetwork) -> f32 {
         let net1_highest = net1.get_highest_local_innovation();
@@ -174,9 +208,9 @@ impl Evolution {
         let average_weight_diff = total_weight_diff / matching_weights as f32;
 
         // TODO: Do constants
-        let c1 = 0.5;
-        let c2 = 0.5;
-        let c3 = 0.5;
+        let c1 = 1.0;
+        let c2 = 1.0;
+        let c3 = 0.4;
         let n = net2.get_genes().len().max(net1.get_genes().len()) as f32;
         let distance = (c1 * excess) / n + (c2 * disjoint) / n + c3 * average_weight_diff;
 
