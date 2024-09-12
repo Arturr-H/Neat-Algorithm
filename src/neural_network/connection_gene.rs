@@ -1,6 +1,7 @@
 use rand::{thread_rng, Rng};
 
 /// A connection between two `NodeGenes`
+#[derive(Clone)]
 pub struct ConnectionGene {
     /// The index / ID of some node
     node_in: usize,
@@ -53,7 +54,7 @@ impl ConnectionGene {
 impl std::fmt::Debug for ConnectionGene {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.enabled {
-            write!(f, "Conn({}-{} ({}))", self.node_in, self.node_out, self.weight)
+            write!(f, "Conn({}-{} ({:.2} ~ {}))", self.node_in, self.node_out, self.weight, self.innovation_number)
         }else {
             write!(f, "Conn(...)")
         }

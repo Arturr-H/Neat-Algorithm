@@ -1,7 +1,8 @@
-use std::{collections::{HashMap, HashSet, VecDeque}, fmt::Debug, hash::Hash, process::Output, sync::{Arc, Mutex}};
+use std::{collections::{HashMap, HashSet}, fmt::Debug, sync::{Arc, Mutex}};
 use rand::{thread_rng, Rng};
 use super::{connection_gene::ConnectionGene, node_gene::{NodeGene, NodeGeneType}};
 
+#[derive(Clone)]
 pub struct NeatNetwork {
     /// The amount of neurons to feed in
     input_size: usize,
@@ -38,6 +39,9 @@ pub struct NeatNetwork {
     /// insert a new connection with the innovation number of the
     /// global connection
     local_occupied_connections: HashSet<(usize, usize)>,
+
+    /// Used for calculating excess nodes in distance function
+    highest_local_innovation: usize,
 }
 
 impl NeatNetwork {
@@ -77,6 +81,7 @@ impl NeatNetwork {
         // Create connections genes
         let mut local_occupied_connections = HashSet::new();
         let mut connection_genes = Vec::new();
+        let mut highest_local_innovation = 0;
         let mut local_innovation = 0;
         let mut rng = thread_rng();
 
@@ -88,6 +93,7 @@ impl NeatNetwork {
                     rng.gen_range(0.05..0.2),
                     global_occupied_connections.clone(),
                     &mut local_occupied_connections,
+                    &mut highest_local_innovation,
                     local_innovation
                 );
 
@@ -116,7 +122,8 @@ impl NeatNetwork {
             node_gene_index: input + output,
             global_innovation,
             global_occupied_connections,
-            local_occupied_connections
+            local_occupied_connections,
+            highest_local_innovation
         }
     }
 
@@ -124,7 +131,7 @@ impl NeatNetwork {
     pub fn mutate(&mut self) -> () {
         let mut rng = thread_rng();
         let will_be_node_gene = thread_rng().gen_bool(0.5);
-        let current_innovation = self.get_innovation();
+        let current_innovation = self.get_global_innovation();
 
         // Split weight in half and place node in middle
         if will_be_node_gene {
@@ -145,6 +152,7 @@ impl NeatNetwork {
                 1.0,
                 self.global_occupied_connections.clone(),
                 &mut self.local_occupied_connections,
+                &mut self.highest_local_innovation,
                 current_innovation + 1
             );
             let (output_connection, should_increment_outgoing) = Self::create_connection(
@@ -152,14 +160,15 @@ impl NeatNetwork {
                 gene.weight(),
                 self.global_occupied_connections.clone(),
                 &mut self.local_occupied_connections,
+                &mut self.highest_local_innovation,
                 current_innovation + 2
             );
 
             // If the genes were actually created we increment the 
             // innovation number accordingly to match the previous
             // current_innovation + 1 and + 2
-            if should_increment_ingoing { self.increment_innovation(); };
-            if should_increment_outgoing { self.increment_innovation(); };
+            if should_increment_ingoing { self.increment_global_innovation(); };
+            if should_increment_outgoing { self.increment_global_innovation(); };
 
             // Register that we've created a new incoming weight
             // for the new node, and the updated node and push connection
@@ -188,11 +197,12 @@ impl NeatNetwork {
                 rng.gen_range(0.05..0.2),
                 self.global_occupied_connections.clone(),
                 &mut self.local_occupied_connections,
-                current_innovation + 1
+                &mut self.highest_local_innovation,
+                current_innovation + 1,
             );
 
-            // Increase innovation to match the previous self.get_innovation() + 1
-            if should_increment { self.increment_innovation(); };
+            // Increase innovation to match the previous self.get_global_innovation() + 1
+            if should_increment { self.increment_global_innovation(); };
             if let Some(conn) = connection { self.connection_genes.push(conn); };
         }
     }
@@ -235,7 +245,8 @@ impl NeatNetwork {
         weight: f32,
         global_occupied_connections: Arc<Mutex<HashMap<(usize, usize), usize>>>,
         local_occupied_connections: &mut HashSet<(usize, usize)>,
-        innovation_number: usize
+        highest_local_innovation_number: &mut usize,
+        innovation_number: usize,
     ) -> (Option<ConnectionGene>, bool) {
         let global_occupied_connections = &mut global_occupied_connections.lock().unwrap();
         match global_occupied_connections.get(&(node_in, node_out)) {
@@ -249,8 +260,12 @@ impl NeatNetwork {
                     // push any connections because they already exist
                     (None, false)
                 }else {
+                    let innovation = *inherited_innovation;
+                    if innovation > *highest_local_innovation_number {
+                        *highest_local_innovation_number = innovation;
+                    }
                     local_occupied_connections.insert((node_in, node_out));
-                    (Some(ConnectionGene::new(node_in, node_out, weight, *inherited_innovation)), false)
+                    (Some(ConnectionGene::new(node_in, node_out, weight, innovation)), false)
                 }
             },
             None => {
@@ -259,6 +274,9 @@ impl NeatNetwork {
                 // Returns with true because we've incremented
                 global_occupied_connections.insert((node_in, node_out), innovation_number);
                 local_occupied_connections.insert((node_in, node_out));
+                if innovation_number > *highest_local_innovation_number {
+                    *highest_local_innovation_number = innovation_number;
+                }
                 (Some(ConnectionGene::new(node_in, node_out, weight, innovation_number)), true)
             }
         }
@@ -337,13 +355,22 @@ impl NeatNetwork {
     }
 
     /// Increment global innovation number
-    pub fn increment_innovation(&self) -> usize {
+    pub fn increment_global_innovation(&self) -> usize {
         let inno = &mut *self.global_innovation.lock().unwrap();
         *inno += 1;
         *inno
     }
-    pub fn get_innovation(&self) -> usize {
+    pub fn get_global_innovation(&self) -> usize {
         *self.global_innovation.lock().unwrap()
+    }
+
+    pub fn get_highest_local_innovation(&self) -> usize {
+        // ? If we count node genes as historical markers change this
+        self.highest_local_innovation
+    }
+
+    pub fn get_genes(&self) -> &Vec<ConnectionGene> {
+        &self.connection_genes
     }
 }
 
