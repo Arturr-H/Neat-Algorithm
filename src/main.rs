@@ -20,6 +20,8 @@ fn main() -> () {
         .build()
         .generation();
 
+    let net = NeatNetwork::new(5, 7);
+    net.create_python_debug_plotting();
 
     let xor = vec![((0.0, 0.0), 0.0),
                     ((1.0, 0.0), 1.0),

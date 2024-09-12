@@ -90,6 +90,7 @@ impl NeatNetwork {
             occupied_connections,
             global_innovation: 0
         }
+
     }
 
     pub fn debug_add_node(&mut self) -> () {
@@ -239,6 +240,27 @@ impl NeatNetwork {
 
         self.node_genes[self.input_size..(self.input_size + self.output_size)]
             .iter().map(|e| e.activation()).collect()
+    }
+
+    pub fn create_python_debug_plotting(&self) {
+        let nodes = &self.node_genes;
+        let mut node_string = String::new();
+        for (index, node) in nodes.iter().enumerate() {
+            let node_type = match node.node_type() {
+                NodeGeneType::Input => "Input",
+                NodeGeneType::Ouptut => "Output",
+                NodeGeneType::Regular => "Regular",
+            };
+            node_string.push_str(&format!("{}: {:?},", index, node_type));
+        }
+
+        let mut connection_string = String::new();
+
+        for connection in &self.connection_genes {
+            connection_string.push_str(&format!("({}, {}),", connection.node_in(), connection.node_out()));
+        }
+
+        println!("{}\n{}", connection_string, node_string)
     }
 
     /// The degree of a node is the amount of weights which are connected to it. And the
