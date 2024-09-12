@@ -1,3 +1,5 @@
+use std::{collections::HashMap, sync::{Arc, Mutex}};
+
 use crate::neural_network::network::NeatNetwork;
 
 /// Struct to make a set amount of networks
@@ -17,7 +19,7 @@ pub struct EvolutionBuilder {
     /// the network is trained to do. The function will return an
     /// f32 which evaluates the performance of the network. Higher
     /// return value => better performing network
-    fitness_function: Option<fn(&mut NeatNetwork) -> f32>
+    fitness_function: Option<fn(&mut NeatNetwork) -> f32>,
 }
 
 pub struct Evolution {
@@ -27,6 +29,19 @@ pub struct Evolution {
     input_nodes: usize,
     output_nodes: usize,
     fitness_function: fn(&mut NeatNetwork) -> f32,
+
+    global_innovation_number: Arc<Mutex<usize>>,
+
+    /// To check if we've already got a connection
+    /// between two nodes. NEEDS to be (min, max),
+    /// and by that I mean the first integer index
+    /// needs to be less than the second.
+    /// 
+    /// The key, (usize, usize) depicts (node_in,
+    /// node_out) for some weight, and the value
+    /// (usize) depicts the innovation number of
+    /// that gene
+    global_occupied_connections: Arc<Mutex<HashMap<(usize, usize), usize>>>,
 }
 
 impl EvolutionBuilder {
@@ -69,8 +84,15 @@ impl EvolutionBuilder {
         let output_nodes = self.output_nodes.unwrap();
 
         let mut networks = Vec::with_capacity(batch_size);
+        let global_innovation_number = Arc::new(Mutex::new(0));
+        let mut global_occupied_connections = Arc::new(Mutex::new(HashMap::new()));
         for _ in 0..batch_size {
-            networks.push(NeatNetwork::new(input_nodes, output_nodes))
+            networks.push(NeatNetwork::new(
+                input_nodes,
+                output_nodes,
+                global_innovation_number.clone(),
+                global_occupied_connections.clone()
+            ));
         }
 
         Evolution {
@@ -78,7 +100,9 @@ impl EvolutionBuilder {
             batch_size,
             input_nodes,
             output_nodes,
-            fitness_function: self.fitness_function.unwrap()
+            fitness_function: self.fitness_function.unwrap(),
+            global_innovation_number,
+            global_occupied_connections
         }
     }
 }
