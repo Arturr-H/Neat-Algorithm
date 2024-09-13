@@ -2,6 +2,11 @@ use std::{collections::{HashMap, HashSet}, sync::{Arc, Mutex}};
 use crate::{neural_network::network::NeatNetwork, utils::Timer};
 use super::species::Species;
 
+/// How many times we mutate the representative before cloning
+/// and creating a distinct species
+const SPECIES_REPRESENTATIVE_MUTATIONS: usize = 20;
+const AMOUNT_OF_INITIAL_SPECIES: usize = 10;
+
 /// Struct to make a set amount of networks
 /// compete against eachother.
 pub struct EvolutionBuilder {
@@ -23,8 +28,8 @@ pub struct EvolutionBuilder {
 }
 
 pub struct Evolution {
-    /// All the diffrent networks that compete
-    networks: Vec<NeatNetwork>,
+    /// All the diffrent networks that compete in groups
+    species: Vec<Species>,
     batch_size: usize,
     input_nodes: usize,
     output_nodes: usize,
@@ -83,20 +88,24 @@ impl EvolutionBuilder {
         let input_nodes = self.input_nodes.unwrap();
         let output_nodes = self.output_nodes.unwrap();
 
-        let mut networks = Vec::with_capacity(batch_size);
-        let global_innovation_number = Arc::new(Mutex::new(0));
+        // Create species
+        let mut species: Vec<Species> = Vec::with_capacity(AMOUNT_OF_INITIAL_SPECIES);
         let mut global_occupied_connections = Arc::new(Mutex::new(HashMap::new()));
-        for _ in 0..batch_size {
-            networks.push(NeatNetwork::new(
+        let global_innovation_number = Arc::new(Mutex::new(0));
+
+        for i in 0..AMOUNT_OF_INITIAL_SPECIES {
+            let representative = NeatNetwork::new(
                 input_nodes,
                 output_nodes,
                 global_innovation_number.clone(),
                 global_occupied_connections.clone()
-            ));
+            );
+
+            species.push(Species::new(representative));
         }
 
         Evolution {
-            networks,
+            species,
             batch_size,
             input_nodes,
             output_nodes,
@@ -115,11 +124,9 @@ impl Evolution {
 
     /// Runs the networks through a generation of mutation and selection
     pub fn generation(&mut self) -> () {
-        Species::new(NeatNetwork::new(
-            self.input_nodes, self.output_nodes,
-            self.global_innovation_number.clone(),
-            self.global_occupied_connections.clone()
-        )).eliminate(self.fitness_function);
+        for species in self.species.iter_mut() {
+            species.eliminate(self.fitness_function)
+        }
     }
 
     /// Distance
@@ -130,7 +137,7 @@ impl Evolution {
         // Excess genes are the difference between the maximum
         // local innovation number of each network. 
         let mut excess = 0.;
-        let mut highest_local_innovation = 0;
+        let mut highest_local_innovation;
         if net1_highest > net2_highest {
             highest_local_innovation = net1_highest;
             for gene in net1.get_genes() {
