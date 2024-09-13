@@ -42,6 +42,7 @@ pub struct NeatNetwork {
 
     /// Used for calculating excess nodes in distance function
     highest_local_innovation: usize,
+
 }
 
 impl NeatNetwork {
@@ -207,27 +208,7 @@ impl NeatNetwork {
         }
     }
 
-    pub fn crossover(&mut self, network1: NeatNetwork, network2: NeatNetwork) -> NeatNetwork {
-        //tar in parent 1 och parent 2. 
-        
-        // Min() av antal innovation numbers i vardera nätverk.
-        // Denna siffra representerar antalet innovation numbers i det utvecklade nätverket.
-        // Alla connections/nodes med en innovation number *högre* än detta markeras som "excess" och används helt enkelt inte.
     
-        // resterade innovation numbers benäms som "disjoint".
-        // Dessa disjoints blir pushade till det nya nätverket så att 
-        // det finns kontinuitet hela vägen från innovation number 0..kortaste längden innovation numbers
-
-
-        // börja med att kombinera "commons", nodes och connections som både networks har.
-        // Connections / Nodes med lika innovation number kommer inte förändras, då de är samma
-
-
-        //disjoints är valda från nätverket med högre fitness.
-
-        todo!()
-    }
-
     /// Tries to create a new connection. If the connection already
     /// exists, we return the connection but it has the innovation
     /// number of the already existing connection gene, so we don't

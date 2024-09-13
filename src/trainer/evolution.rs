@@ -1,5 +1,7 @@
-use std::{collections::{HashMap, HashSet}, sync::{Arc, Mutex}};
-use crate::{neural_network::network::NeatNetwork, utils::Timer};
+use std::{collections::{HashMap, HashSet}, hash::Hash, sync::{Arc, Mutex}};
+use rand::{thread_rng, Rng};
+
+use crate::neural_network::network::{self, NeatNetwork};
 use super::species::Species;
 
 /// How many times we mutate the representative before cloning
@@ -129,6 +131,66 @@ impl Evolution {
         }
     }
 
+    pub fn crossover(&self, mut network1: NeatNetwork, mut network2: NeatNetwork) -> NeatNetwork {
+        let mut rng = thread_rng();
+        let net1_genes = network1.get_genes().clone();
+        let net2_genes = network2.get_genes().clone();
+        let net1_innovations: HashSet<usize> = net1_genes.iter().map(|e| e.innovation_number()).collect();
+        let net2_innovations: HashSet<usize> = net2_genes.iter().map(|e| e.innovation_number()).collect();
+        let network_1_highest = network1.get_highest_local_innovation();
+        let network_2_highest = network2.get_highest_local_innovation();
+        let highest = network_1_highest.max(network_2_highest);
+        let lowest = network_1_highest.min(network_2_highest);
+
+        let mut net1_score = (self.fitness_function)(&mut network1);
+        let mut net2_score = (self.fitness_function)(&mut network2);
+        
+        let mut new_genes = Vec::with_capacity(highest);
+        for i in 0..highest {
+            let is_in_net1 = net1_innovations.contains(&i);
+            let is_in_net2 = net2_innovations.contains(&i);
+            
+            if is_in_net1 && is_in_net2 {
+                if rng.gen_bool(0.5) {
+                    new_genes.push(net1_genes[i].clone());
+                }else {
+                    new_genes.push(net2_genes[i].clone());
+                }
+            }
+
+            // Disjoints
+            else if is_in_net1 && network_1_highest < network_2_highest && net1_innovations.contains(&i) {
+                println!("add disjoint net1 {:?}", net1_genes[i].clone());
+                new_genes.push(net1_genes[i].clone());
+            }
+            else if is_in_net2 && network_2_highest < network_1_highest && net2_innovations.contains(&i) {
+                println!("add disjoint net2 {:?}", net2_genes[i].clone());
+                new_genes.push(net2_genes[i].clone());
+            }
+
+            else {
+                // Excess
+                if network_1_highest > network_2_highest && net1_score > net2_score {
+                    if net1_innovations.contains(&i) {
+                        new_genes.push(net1_genes[i].clone());
+                        println!("Excess from net 1")
+                    }
+                }
+                else if network_1_highest < network_2_highest && net1_score < net2_score {
+                    if net2_innovations.contains(&i) {
+                        new_genes.push(net2_genes[i].clone());
+                        println!("Excess from net 2")
+                    }
+                }
+            }
+        }        
+        
+        println!("{:?}", new_genes);
+        // println!("{:?}", common_innovations);
+        todo!()
+    }
+
+
     /// Distance
     pub fn distance(net1: &NeatNetwork, net2: &NeatNetwork) -> f32 {
         let net1_highest = net1.get_highest_local_innovation();
@@ -181,9 +243,9 @@ impl Evolution {
         let average_weight_diff = total_weight_diff / matching_weights as f32;
 
         // TODO: Do constants
-        let c1 = 0.5;
-        let c2 = 0.5;
-        let c3 = 0.5;
+        let c1 = 1.0;
+        let c2 = 1.0;
+        let c3 = 0.4;
         let n = net2.get_genes().len().max(net1.get_genes().len()) as f32;
         let distance = (c1 * excess) / n + (c2 * disjoint) / n + c3 * average_weight_diff;
 
