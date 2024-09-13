@@ -16,31 +16,40 @@ fn main() -> () {
     let mut _evolution = Evolution::new()
         .batch_size(100)
         // .with_input_nodes(64 /* All cells */ + 36 /* Tiles to choose from */)
-        .with_input_nodes(3)
+        .with_input_nodes(2)
         // .with_output_nodes(8/*x*/ + 8/*y - Coordinate for tile placement */ + 3 /*What tile buffer to choose */)
-        .with_output_nodes(2)
+        .with_output_nodes(1)
         .set_fitness_function(|network| {
             rand::thread_rng().gen_range(0.0..1.0)
         })
         .build();
 
     let mut global_innovation = Arc::new(Mutex::new(0));
-    let mut net1 = NeatNetwork::new(3, 2, global_innovation.clone(), Arc::new(Mutex::new(HashMap::new())));
-    let mut net2 = NeatNetwork::new(3, 2, global_innovation.clone(), Arc::new(Mutex::new(HashMap::new())));
+    let mut net1 = NeatNetwork::new(2, 1, global_innovation.clone(), Arc::new(Mutex::new(HashMap::new())));
+    
+    // These will become 
     net1.mutate();
+    net1.mutate();
+    net1.mutate();
+
+    let mut net2 = net1.clone();
+
+    // These will be disjoints
+    net1.mutate();
+    net1.mutate();
+
+    // Because net2 has better fitness which is seen here
+    // _evolution.crossover(net1, net2, 1., 2. <-------- net2 fitness = 2. > 1.
+    // these newly mutated genes will become excess because they are taken from
+    // the better performing network
     net2.mutate();
-    net1.mutate();
     net2.mutate();
-    net1.mutate();
-    net2.mutate();
-    net1.mutate();
-    net2.mutate();
-    net1.mutate();
-    net2.mutate();
-    net1.mutate();
     net2.mutate();
     
-    _evolution.crossover(net1, net2);
+    println!("{:?}", net1.get_genes());
+    println!("{:?}", net2.get_genes());
+    
+    _evolution.crossover(net1, net2, 1., 2.);
     // let xor = vec![((0.0, 0.0), 0.0),
     //                 ((1.0, 0.0), 1.0),
     //                 ((0.0, 1.0), 1.0),
