@@ -128,6 +128,57 @@ impl NeatNetwork {
         }
     }
 
+    /// Create a new network but provide the genes (connections). Used
+    /// after crossing over two parents' genes
+    pub fn new_with_genes(
+        input: usize,
+        output: usize,
+        global_innovation: Arc<Mutex<usize>>,
+        global_occupied_connections: Arc<Mutex<HashMap<(usize, usize), usize>>>,
+        connection_genes: Vec<ConnectionGene>
+    ) -> Self {
+        let mut highest_local_innovation = 0;
+        let mut local_occupied_connections = HashSet::new();
+        let mut highest_node_index = 0;
+        for connection in &connection_genes {
+            let node_in = connection.node_in();
+            let node_out = connection.node_out();
+
+            local_occupied_connections.insert((node_in, node_out));
+            if connection.innovation_number() > highest_local_innovation {
+                highest_local_innovation = connection.innovation_number();
+            }
+
+            let local_highest_index = node_in.max(node_out);
+            if local_highest_index > highest_node_index {
+                highest_node_index = local_highest_index;
+            }
+        }
+
+        let mut node_genes = Vec::new();
+        for i in 0..highest_node_index + 1 {
+            let node_type = match i {
+                _ if i < input => NodeGeneType::Input,
+                _ if i < (input + output) => NodeGeneType::Ouptut,
+                _ => NodeGeneType::Regular
+            };
+            node_genes.push(NodeGene::new(i, node_type))
+        }
+
+        Self {
+            input_size: input,
+            output_size: output,
+            node_genes,
+            connection_genes,
+            node_gene_index: highest_node_index + 1,
+            global_innovation,
+            global_occupied_connections,
+            local_occupied_connections,
+            highest_local_innovation
+        }
+    }
+
+
     /// Will randomly add a new gene
     pub fn mutate(&mut self) -> () {
         let mut rng = thread_rng();

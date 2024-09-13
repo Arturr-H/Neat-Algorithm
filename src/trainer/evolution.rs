@@ -131,18 +131,21 @@ impl Evolution {
         }
     }
 
-    pub fn crossover(&self, mut network1: NeatNetwork, mut network2: NeatNetwork, fitness1: f32, fitness2: f32) -> () {
+    pub fn crossover(&self, mut network1: &NeatNetwork, mut network2: &NeatNetwork, fitness1: f32, fitness2: f32) -> NeatNetwork {
         let mut rng = thread_rng();
         let mut child_genes: Vec<ConnectionGene> = Vec::new();
     
         let mut i = 0;
         let mut j = 0;
         
+        let net1_genes = network1.get_genes();
+        let net2_genes = network2.get_genes();
+
         // Traverse both parent genomes
-        while i < network1.get_genes().len() && j < network2.get_genes().len() {
-            let gene1 = &network1.get_genes()[i];
-            let gene2 = &network2.get_genes()[j];
-            
+        while i < net1_genes.len() && j < net2_genes.len() {
+            let gene1 = &net1_genes[i];
+            let gene2 = &net2_genes[j];
+
             if gene1.innovation_number() == gene2.innovation_number() {
                 // Matching genes: Randomly inherit from either parent
                 if rand::random() {
@@ -155,14 +158,14 @@ impl Evolution {
                 i += 1;
                 j += 1;
             } else if gene1.innovation_number() < gene2.innovation_number() {
-                // Disjoint gene from network1.get_genes()
+                // Disjoint gene from net1_genes
                 if fitness1 >= fitness2 {
                     println!("----- Inheriting d1");
                     child_genes.push(gene1.clone());
                 }
                 i += 1;
             } else {
-                // Disjoint gene from network2.get_genes()
+                // Disjoint gene from net2_genes
                 if fitness2 >= fitness1 {
                     println!("----- Inheriting d2");
                     child_genes.push(gene2.clone());
@@ -173,22 +176,25 @@ impl Evolution {
         
         // Handle excess genes from the longer genome
         if fitness1 >= fitness2 {
-            while i < network1.get_genes().len() {
+            while i < net1_genes.len() {
                 println!("----- Inheriting ex1");
-                child_genes.push(network1.get_genes()[i].clone());
+                child_genes.push(net1_genes[i].clone());
                 i += 1;
             }
         } else {
-            while j < network2.get_genes().len() {
+            while j < net2_genes.len() {
                 println!("----- Inheriting ex2");
-                child_genes.push(network2.get_genes()[j].clone());
+                child_genes.push(net2_genes[j].clone());
                 j += 1;
             }
         }
         
-        dbg!(child_genes);
-
-        todo!("Implement network return");
+        NeatNetwork::new_with_genes(
+            self.input_nodes, self.input_nodes,
+            self.global_innovation_number.clone(),
+            self.global_occupied_connections.clone(),
+            child_genes
+        )
     }
 
 
