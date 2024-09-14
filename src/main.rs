@@ -7,68 +7,53 @@ mod utils;
 
 /* Imports */
 use std::{collections::HashMap, sync::{Arc, Mutex}, time::Duration};
-use neural_network::network::NeatNetwork;
+use neural_network::{activation::Activation, network::NeatNetwork, node_gene::{NodeGene, NodeGeneType}};
 use block_blast::board::{self, board::Board, board_error::PlacementError, cell::Cell};
-use trainer::evolution::{Evolution, EvolutionBuilder};
+use trainer::{evolution::{Evolution, EvolutionBuilder}, species::Species};
 use rand::Rng;
 
 fn main() -> () {
+    // .with_input_nodes(64 /* All cells */ + 36 /* Tiles to choose from */)
+    // .with_output_nodes(8/*x*/ + 8/*y - Coordinate for tile placement */ + 3 /*What tile buffer to choose */)
     let mut _evolution = Evolution::new()
         .batch_size(100)
-        // .with_input_nodes(64 /* All cells */ + 36 /* Tiles to choose from */)
         .with_input_nodes(2)
-        // .with_output_nodes(8/*x*/ + 8/*y - Coordinate for tile placement */ + 3 /*What tile buffer to choose */)
         .with_output_nodes(1)
-        .set_fitness_function(|network| {
-            rand::thread_rng().gen_range(0.0..1.0)
-        })
+        .with_output_activation(Activation::Sigmoid)
+        .with_species_size(10)
+        .set_fitness_function(score_network)
         .build();
 
-    let mut global_innovation = Arc::new(Mutex::new(0));
-    let mut net1 = NeatNetwork::new(2, 1, global_innovation.clone(), Arc::new(Mutex::new(HashMap::new())));
-    
-    // These will become 
-    net1.mutate();
-    net1.mutate();
-    net1.mutate();
+    _evolution.run();
 
-    let mut net2 = net1.clone();
-
-    // These will be disjoints
-    net1.mutate();
-    net1.mutate();
-
-    // Because net2 has better fitness which is seen here
-    // _evolution.crossover(net1, net2, 1., 2. <-------- net2 fitness = 2. > 1.
-    // these newly mutated genes will become excess because they are taken from
-    // the better performing network
-    net2.mutate();
-    net2.mutate();
-    net2.mutate();
-    
-    println!("{:?}", net1.get_genes());
-    println!("{:?}", net2.get_genes());
-    
-    _evolution.crossover(net1, net2, 1., 2.);
-    // let xor = vec![((0.0, 0.0), 0.0),
-    //                 ((1.0, 0.0), 1.0),
-    //                 ((0.0, 1.0), 1.0),
-    //                 ((1.0, 1.0), 0.0)];
-
-    // let mut all_values = Vec::new();
-    // for net in networks.iter_mut() {
-    //     let mut total = 0.0;
-    //     for input in xor.iter() {
-    //         let err = 1. - net.calculate_output(vec![input.0.0, input.0.1])[0];
-    //         total += err;
-    //     }
-
-    //     all_values.push(total / 4.);
+    // let global_innovation = Arc::new(Mutex::new(0));
+    // let global_occupied = Arc::new(Mutex::new(HashMap::new()));
+    // let mut net = NeatNetwork::new(2, 3, global_innovation, global_occupied);
+    // let mut s = Species::new(net, 1);
+    // for i in 0..3000 {
+    //     s.compute_generation(score_network);
+    //     println!("score {}", s.previous_aveage_score());
     // }
-
-    // let top_5 = top_n_with_indices(&all_values, 5);
 }
 
+fn score_network(network: &mut NeatNetwork) -> f32 {
+    let xor = vec![((0.0, 0.0), 0.0),
+                    ((1.0, 0.0), 1.0),
+                    ((0.0, 1.0), 1.0),
+                    ((1.0, 1.0), 0.0)];
+
+    let mut total_score = 0.0;
+    for &((input1, input2), expected_output) in xor.iter() {
+        let err = (expected_output - network.calculate_output(vec![input1, input2])[0]).abs();
+        /* 1. - err becasue sigmoid max is = 1 */
+        total_score += 1. - err;
+    }
+
+    total_score
+}
+
+
+/*
 fn score_network(network: &mut NeatNetwork) -> f32 {
     let mut game = Board::new();
     let mut score = 0.0;
@@ -122,4 +107,4 @@ fn score_network(network: &mut NeatNetwork) -> f32 {
         // game.log();
     }
 }
-
+*/
