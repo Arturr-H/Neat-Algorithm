@@ -1,13 +1,14 @@
 use std::{collections::{HashMap, HashSet}, hash::Hash, sync::{Arc, Mutex}};
 use rand::{thread_rng, Rng};
 
-use crate::neural_network::{connection_gene::ConnectionGene, network::{self, NeatNetwork}};
+use crate::neural_network::{activation::{Activation, NetworkActivations}, connection_gene::ConnectionGene, network::{self, NeatNetwork}};
 use super::species::Species;
 
 /// How many times we mutate the representative before cloning
 /// and creating a distinct species
 const SPECIES_REPRESENTATIVE_MUTATIONS: usize = 20;
 const AMOUNT_OF_INITIAL_SPECIES: usize = 10;
+const DEFAULT_SPECIES_SIZE: usize = 10;
 
 /// Struct to make a set amount of networks
 /// compete against eachother.
@@ -27,6 +28,14 @@ pub struct EvolutionBuilder {
     /// f32 which evaluates the performance of the network. Higher
     /// return value => better performing network
     fitness_function: Option<fn(&mut NeatNetwork) -> f32>,
+
+    /// How many networks (including representative) we should have
+    /// in each species group (how many networks who compete against
+    /// eachother each generation)
+    species_size: usize,
+
+    hidden_activation: Activation,
+    output_activation: Activation,
 }
 
 pub struct Evolution {
@@ -36,7 +45,7 @@ pub struct Evolution {
     input_nodes: usize,
     output_nodes: usize,
     fitness_function: fn(&mut NeatNetwork) -> f32,
-
+    activations: NetworkActivations,
     global_innovation_number: Arc<Mutex<usize>>,
 
     /// To check if we've already got a connection
@@ -57,7 +66,10 @@ impl EvolutionBuilder {
             batch_size: None,
             output_nodes: None,
             input_nodes: None,
-            fitness_function: None
+            fitness_function: None,
+            species_size: DEFAULT_SPECIES_SIZE,
+            hidden_activation: Activation::LeakyRelu,
+            output_activation: Activation::Sigmoid,
         }
     }
 
@@ -69,6 +81,16 @@ impl EvolutionBuilder {
     pub fn with_input_nodes(&mut self, nodes: usize) -> &mut Self { self.input_nodes = Some(nodes); self }
     /// Set amount of output nodes for each network
     pub fn with_output_nodes(&mut self, nodes: usize) -> &mut Self { self.output_nodes = Some(nodes); self }
+
+    /// How many networks (including representative) we should have
+    /// in each species group (how many networks who compete against
+    /// eachother each generation per group)
+    pub fn with_species_size(&mut self, size: usize) -> &mut Self { self.species_size = size; self }
+
+    /// Set the activation function to be applied to all hidden nodes
+    pub fn with_hidden_activation(&mut self, activation: Activation) -> &mut Self { self.hidden_activation = activation; self }
+    /// Set the activation function to be applied to all output nodes
+    pub fn with_output_activation(&mut self, activation: Activation) -> &mut Self { self.output_activation = activation; self }
 
     /// This function will run the network trough some test that
     /// the network is trained to do. The function will return an
@@ -89,7 +111,11 @@ impl EvolutionBuilder {
         let batch_size = self.batch_size.unwrap();
         let input_nodes = self.input_nodes.unwrap();
         let output_nodes = self.output_nodes.unwrap();
-
+        let species_size = self.species_size; // Default is `DEFAULT_SPECIES_SIZE`
+        let hidden_activation = self.hidden_activation;
+        let output_activation = self.output_activation;
+        let activations = NetworkActivations::new(hidden_activation, output_activation);
+        
         // Create species
         let mut species: Vec<Species> = Vec::with_capacity(AMOUNT_OF_INITIAL_SPECIES);
         let mut global_occupied_connections = Arc::new(Mutex::new(HashMap::new()));
@@ -100,10 +126,11 @@ impl EvolutionBuilder {
                 input_nodes,
                 output_nodes,
                 global_innovation_number.clone(),
-                global_occupied_connections.clone()
+                global_occupied_connections.clone(),
+                activations
             );
 
-            species.push(Species::new(representative));
+            species.push(Species::new(representative, species_size));
         }
 
         Evolution {
@@ -113,7 +140,8 @@ impl EvolutionBuilder {
             output_nodes,
             fitness_function: self.fitness_function.unwrap(),
             global_innovation_number,
-            global_occupied_connections
+            global_occupied_connections,
+            activations
         }
     }
 }
@@ -124,11 +152,30 @@ impl Evolution {
         EvolutionBuilder::new()
     }
 
-    /// Runs the networks through a generation of mutation and selection
-    pub fn generation(&mut self) -> () {
-        for species in self.species.iter_mut() {
-            species.eliminate(self.fitness_function)
+    pub fn run(&mut self) -> () {
+        for i in 0..1000 {
+            let (avg_score, best_score) = self.generation();
+            println!("Generation {i} Avg: {:.3} Best: {:.3}", avg_score, best_score);
+
+            // std::thread::sleep(std::time::Duration::from_millis(200));
         }
+    }
+
+    /// Runs the networks through a generation of mutation and selection
+    pub fn generation(&mut self) -> (f32, f32) {
+        let mut total_average_score = 0.0;
+        let mut best_score = 0.0;
+
+        for species in self.species.iter_mut() {
+            species.compute_generation(self.fitness_function);
+            let score = species.previous_aveage_score();
+            total_average_score += score;
+            if score > best_score {
+                best_score = score;
+            }
+        }
+
+        (total_average_score / self.species.len() as f32, best_score)
     }
 
     pub fn crossover(&self, mut network1: &NeatNetwork, mut network2: &NeatNetwork, fitness1: f32, fitness2: f32) -> NeatNetwork {
@@ -193,7 +240,8 @@ impl Evolution {
             self.input_nodes, self.input_nodes,
             self.global_innovation_number.clone(),
             self.global_occupied_connections.clone(),
-            child_genes
+            self.activations,
+            child_genes,
         )
     }
 
