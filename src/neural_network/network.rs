@@ -1,6 +1,6 @@
 use std::{collections::{HashMap, HashSet}, fmt::Debug, sync::{Arc, Mutex}};
 use rand::{thread_rng, Rng};
-use super::{connection_gene::ConnectionGene, node_gene::{NodeGene, NodeGeneType}};
+use super::{activation::NetworkActivations, connection_gene::ConnectionGene, node_gene::{NodeGene, NodeGeneType}};
 
 #[derive(Clone)]
 pub struct NeatNetwork {
@@ -43,6 +43,9 @@ pub struct NeatNetwork {
     /// Used for calculating excess nodes in distance function
     highest_local_innovation: usize,
 
+    /// The network activation functons for hidden and output
+    /// layers (two diffrent)
+    activations: NetworkActivations
 }
 
 impl NeatNetwork {
@@ -68,7 +71,8 @@ impl NeatNetwork {
         input: usize,
         output: usize,
         global_innovation: Arc<Mutex<usize>>,
-        global_occupied_connections: Arc<Mutex<HashMap<(usize, usize), usize>>>
+        global_occupied_connections: Arc<Mutex<HashMap<(usize, usize), usize>>>,
+        activations: NetworkActivations
     ) -> Self {
         // Create node genes
         let mut node_genes = Vec::with_capacity(input + output);
@@ -124,7 +128,8 @@ impl NeatNetwork {
             global_innovation,
             global_occupied_connections,
             local_occupied_connections,
-            highest_local_innovation
+            highest_local_innovation,
+            activations
         }
     }
 
@@ -135,7 +140,8 @@ impl NeatNetwork {
         output: usize,
         global_innovation: Arc<Mutex<usize>>,
         global_occupied_connections: Arc<Mutex<HashMap<(usize, usize), usize>>>,
-        connection_genes: Vec<ConnectionGene>
+        activations: NetworkActivations,
+        connection_genes: Vec<ConnectionGene>,
     ) -> Self {
         let mut highest_local_innovation = 0;
         let mut local_occupied_connections = HashSet::new();
@@ -174,12 +180,13 @@ impl NeatNetwork {
             global_innovation,
             global_occupied_connections,
             local_occupied_connections,
-            highest_local_innovation
+            highest_local_innovation,
+            activations
         }
     }
 
 
-    /// Will randomly add a new gene
+    /// Mutates the network in one of many ways
     pub fn mutate(&mut self) -> () {
         let mut rng = thread_rng();
         let will_be_node_gene = thread_rng().gen_bool(0.5);
@@ -343,11 +350,26 @@ impl NeatNetwork {
                 sum += prev_node.activation() * connection.weight();
             }
 
-            self.node_genes[index].set_activation(sum);
+            let activated_sum;
+            match node.node_type() {
+                NodeGeneType::Regular => {
+                    activated_sum = self.activations.hidden.run(&vec![sum], 0);
+                },
+                NodeGeneType::Ouptut => {
+                    // We won't activate the output nodes here yet, as we will
+                    // do it later on in this function
+                    activated_sum = sum;
+                },
+                _ => unreachable!()
+            };
+            self.node_genes[index].set_activation(activated_sum);
         }
 
-        self.node_genes[self.input_size..(self.input_size + self.output_size)]
-            .iter().map(|e| e.activation()).collect()
+        let outputs: Vec<f32> = self.node_genes[self.input_size..(self.input_size + self.output_size)]
+            .iter().map(|e| e.activation()).collect();
+
+        // Apply output activation
+        outputs.iter().enumerate().map(|(i, e)| self.activations.output.run(&outputs, i)).collect()
     }
 
     /// The degree of a node is the amount of weights which are connected to it. And the
