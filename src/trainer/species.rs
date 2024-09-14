@@ -16,7 +16,7 @@ pub struct Species {
     /// All networks who are initially cloned from the representative
     networks: Vec<NeatNetwork>,
 
-    previous_aveage_score: f32,
+    previous_average_score: f32,
 }
 
 impl Species {
@@ -34,7 +34,7 @@ impl Species {
             networks.push(net);
         }
 
-        Self { networks, previous_aveage_score: 0. }
+        Self { networks, previous_average_score: 0. }
     }
 
     /// Makes every net go trough a fitness function and determines the top 
@@ -49,7 +49,7 @@ impl Species {
             total_score += points;
             scores.push(points);
         }
-        self.previous_aveage_score = total_score / self.networks.len() as f32;
+        self.previous_average_score = total_score / self.networks.len() as f32;
 
         // We won't modify the top 30, that's why we only deal with bottom 70 here
         let bottom_70_amount = (self.networks.len() as f32 * 0.7).round() as usize;
@@ -65,8 +65,8 @@ impl Species {
 
     /// Get the average score that the networks performed
     /// during the last fitness test
-    pub fn previous_aveage_score(&self) -> f32 {
-        self.previous_aveage_score
+    pub fn previous_average_score(&self) -> f32 {
+        self.previous_average_score
     }
 
     fn bottom_n_with_indices(numbers: &Vec<f32>, n: usize) -> Vec<usize> {
