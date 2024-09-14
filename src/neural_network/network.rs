@@ -1,4 +1,4 @@
-use std::{collections::{HashMap, HashSet}, fmt::Debug, sync::{Arc, Mutex}};
+use std::{collections::{HashMap, HashSet}, fmt::Debug, fs, io, path::Path, sync::{Arc, Mutex}};
 use rand::{thread_rng, Rng};
 use super::{activation::NetworkActivations, connection_gene::ConnectionGene, node_gene::{NodeGene, NodeGeneType}};
 
@@ -185,6 +185,16 @@ impl NeatNetwork {
         println!("\n\n\n{}", connection_string);
         println!("{}", node_string);
         println!("{}", layer_positions);
+
+
+
+    }
+
+    fn change_line<P>(path: P, target_line: usize, new_content: &str) -> io::Result<()>
+    where P: AsRef<Path>, {
+        let file = fs::File::open(&path)?;
+        let reader = 
+        todo!()
     }
 
     /// Create a new network but provide the genes (connections). Used
@@ -243,80 +253,96 @@ impl NeatNetwork {
     /// Mutates the network in one of many ways
     pub fn mutate(&mut self) -> () {
         let mut rng = thread_rng();
-        let will_be_node_gene = thread_rng().gen_bool(0.5);
+
+        let new_node_p = 10;
+        let new_connection_p = 20; 
+        let new_weight_p = 30;
+
+        let total_p = new_node_p + new_connection_p + new_weight_p;
         let current_innovation = self.get_global_innovation();
 
-        // Split weight in half and place node in middle
-        if will_be_node_gene {
-            let length = self.connection_genes.len();
-            
-            let gene = &mut self.connection_genes[rng.gen_range(0..length)];
-            let gene_node_in = gene.node_in();
-            let gene_node_out = gene.node_out();
+        match rng.gen_range(0..total_p) {
+            n if n > new_node_p => {
+                let length = self.connection_genes.len();
+                
+                let gene = &mut self.connection_genes[rng.gen_range(0..length)];
+                let gene_node_in = gene.node_in();
+                let gene_node_out = gene.node_out();
 
-            gene.set_enabled(false);
-            self.node_genes.push(NodeGene::new(
-                self.node_gene_index,
-                NodeGeneType::Regular,
-            ));
+                gene.set_enabled(false);
+                self.node_genes.push(NodeGene::new(
+                    self.node_gene_index,
+                    NodeGeneType::Regular,
+                ));
 
-            let (input_connection, should_increment_ingoing) = Self::create_connection(
-                gene_node_in, self.node_gene_index,
-                1.0,
-                self.global_occupied_connections.clone(),
-                &mut self.local_occupied_connections,
-                &mut self.highest_local_innovation,
-                current_innovation + 1
-            );
-            let (output_connection, should_increment_outgoing) = Self::create_connection(
-                self.node_gene_index, gene_node_out,
-                gene.weight(),
-                self.global_occupied_connections.clone(),
-                &mut self.local_occupied_connections,
-                &mut self.highest_local_innovation,
-                current_innovation + 2
-            );
+                let (input_connection, should_increment_ingoing) = Self::create_connection(
+                    gene_node_in, self.node_gene_index,
+                    1.0,
+                    self.global_occupied_connections.clone(),
+                    &mut self.local_occupied_connections,
+                    &mut self.highest_local_innovation,
+                    current_innovation + 1
+                );
+                let (output_connection, should_increment_outgoing) = Self::create_connection(
+                    self.node_gene_index, gene_node_out,
+                    gene.weight(),
+                    self.global_occupied_connections.clone(),
+                    &mut self.local_occupied_connections,
+                    &mut self.highest_local_innovation,
+                    current_innovation + 2
+                );
 
-            // If the genes were actually created we increment the 
-            // innovation number accordingly to match the previous
-            // current_innovation + 1 and + 2
-            if should_increment_ingoing { self.increment_global_innovation(); };
-            if should_increment_outgoing { self.increment_global_innovation(); };
+                // If the genes were actually created we increment the 
+                // innovation number accordingly to match the previous
+                // current_innovation + 1 and + 2
+                if should_increment_ingoing { self.increment_global_innovation(); };
+                if should_increment_outgoing { self.increment_global_innovation(); };
 
-            // Register that we've created a new incoming weight
-            // for the new node, and the updated node and push connection
-            if let Some(input) = input_connection {
-                self.connection_genes.push(input);
-                self.node_genes[self.node_gene_index].register_new_incoming(self.connection_genes.len() - 2);
-            };
-            if let Some(output) = output_connection {
-                self.connection_genes.push(output);
-                self.node_genes[gene_node_out].register_new_incoming(self.connection_genes.len() - 1);
-            };
+                // Register that we've created a new incoming weight
+                // for the new node, and the updated node and push connection
+                if let Some(input) = input_connection {
+                    self.connection_genes.push(input);
+                    self.node_genes[self.node_gene_index].register_new_incoming(self.connection_genes.len() - 2);
+                };
+                if let Some(output) = output_connection {
+                    self.connection_genes.push(output);
+                    self.node_genes[gene_node_out].register_new_incoming(self.connection_genes.len() - 1);
+                };
 
-            self.node_gene_index += 1;
-        }
-        // Connection gene
-        else {
-            // TODO: Instead of creating connections between
-            // TODO: output and input, try to also create some
-            // TODO: between the "dynamic" hidden node genes.
+                self.node_gene_index += 1;
+            },
 
-            let node_in = rng.gen_range(0..self.input_size); // input
-            let node_out = rng.gen_range(self.input_size..(self.input_size+self.output_size)); // output
+            n if n > new_connection_p => {
+                // TODO: Instead of creating connections between
+                // TODO: output and input, try to also create some
+                // TODO: between the "dynamic" hidden node genes.
 
-            let (connection, should_increment) = Self::create_connection(
-                node_in, node_out,
-                rng.gen_range(0.05..0.2),
-                self.global_occupied_connections.clone(),
-                &mut self.local_occupied_connections,
-                &mut self.highest_local_innovation,
-                current_innovation + 1,
-            );
+                let node_in = rng.gen_range(0..self.input_size); // input
+                let node_out = rng.gen_range(self.input_size..(self.input_size+self.output_size)); // output
 
-            // Increase innovation to match the previous self.get_global_innovation() + 1
-            if should_increment { self.increment_global_innovation(); };
-            if let Some(conn) = connection { self.connection_genes.push(conn); };
+                let (connection, should_increment) = Self::create_connection(
+                    node_in, node_out,
+                    rng.gen_range(0.05..0.2),
+                    self.global_occupied_connections.clone(),
+                    &mut self.local_occupied_connections,
+                    &mut self.highest_local_innovation,
+                    current_innovation + 1,
+                );
+
+                // Increase innovation to match the previous self.get_global_innovation() + 1
+                if should_increment { self.increment_global_innovation(); };
+                if let Some(conn) = connection { self.connection_genes.push(conn); };
+            },
+            n if n > new_weight_p => {
+                let length = self.connection_genes.len();
+
+                let gene = &mut self.connection_genes[rng.gen_range(0..length)];
+
+                gene.mutate_weight();
+            }
+            _ => {
+
+            }
         }
     }
 

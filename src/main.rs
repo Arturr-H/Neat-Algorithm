@@ -7,7 +7,7 @@ mod utils;
 
 /* Imports */
 use std::{collections::HashMap, sync::{Arc, Mutex}, time::Duration};
-use neural_network::{activation::Activation, network::NeatNetwork, node_gene::{NodeGene, NodeGeneType}};
+use neural_network::{activation::{Activation, NetworkActivations}, network::NeatNetwork, node_gene::{NodeGene, NodeGeneType}};
 use block_blast::board::{self, board::Board, board_error::PlacementError, cell::Cell};
 use trainer::evolution::{self, Evolution, EvolutionBuilder};
 use trainer::species::Species;
@@ -24,8 +24,20 @@ fn main() -> () {
         .with_species_size(10)
         .set_fitness_function(score_network)
         .build();
+    // _evolution.run();
 
-    _evolution.run();
+    let mut net = NeatNetwork::new(2, 1, Arc::new(Mutex::new(0)), Arc::new(Mutex::new(HashMap::new())), NetworkActivations::new(Activation::LeakyRelu, Activation::Sigmoid));
+    net.mutate();
+    net.mutate();
+    net.mutate();
+    net.mutate();
+    net.mutate();
+    net.mutate();
+    net.create_python_debug_plotting();
+    
+    let mut s = Species::new(net, 1);
+    s.compute_generation(score_network);
+
 }
 
 fn score_network(network: &mut NeatNetwork) -> f32 {
