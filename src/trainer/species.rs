@@ -16,41 +16,57 @@ pub struct Species {
     /// All networks who are initially cloned from the representative
     networks: Vec<NeatNetwork>,
 
+    previous_aveage_score: f32,
 }
 
 impl Species {
-    pub fn new(representative: NeatNetwork) -> Self {
+    /// Creates a new species with a representative cloned to
+    /// have `size` amount of identical networks that slightly
+    /// mutate away from the representative
+    pub fn new(representative: NeatNetwork, size: usize) -> Self {
+        assert!(size > 0, "Size must be at least 1 to fit representative");
         let mut networks: Vec<NeatNetwork> = Vec::with_capacity(SPEICES_NETWORK_SIZE);
         
         networks.push(representative.clone());
-        for i in 0..SPEICES_NETWORK_SIZE {
-            networks.push(representative.clone());
+        for i in 0..size - 1 {
+            let mut net = representative.clone();
+            net.mutate();
+            networks.push(net);
         }
 
-        Self { networks }
+        Self { networks, previous_aveage_score: 0. }
     }
 
-    /// Removes `SPEICES_REMOVAL_COUNT` amount of the worst
-    /// performing networks in the current species
-    pub fn eliminate(&mut self, fitness_function: fn(&mut NeatNetwork) -> f32) -> () {
+    /// Makes every net go trough a fitness function and determines the top 
+    /// 30% of all nets. These nets automatically go to the next generation
+    /// without changes. The 70% of the rest networks are randomly mutated
+    /// and THEN placed in the next generation
+    pub fn compute_generation(&mut self, fitness_function: fn(&mut NeatNetwork) -> f32) -> () {
         let mut scores = Vec::new();
+        let mut total_score = 0.0;
         for net in self.networks.iter_mut() {
             let points = fitness_function(net);
+            total_score += points;
             scores.push(points);
         }
+        self.previous_aveage_score = total_score / self.networks.len() as f32;
 
-        let worst_performing_indexes = Self::bottom_n_with_indices(&scores, SPEICES_REMOVAL_COUNT);
-        let best_performing_index = Self::top_n_with_indices(&scores, 1)[0];
-        
-        for index in 0..self.networks.len() {
-            if worst_performing_indexes.contains(&index) {
-                dbg!("elim", index);
-                self.networks[index] = self.networks[best_performing_index].clone();
+        // We won't modify the top 30, that's why we only deal with bottom 70 here
+        let bottom_70_amount = (self.networks.len() as f32 * 0.7).round() as usize;
+        let bottom_70 = Self::bottom_n_with_indices(&scores, bottom_70_amount);
 
-                // Mutate once to add a bit of variation
-                self.networks[index].mutate();
-            }
+        for bottom_network_idx in bottom_70 {
+            let bottom_net = &mut self.networks[bottom_network_idx];
+            bottom_net.mutate();
+
+            println!("genome size {}", bottom_net.get_genes().len());
         }
+    }
+
+    /// Get the average score that the networks performed
+    /// during the last fitness test
+    pub fn previous_aveage_score(&self) -> f32 {
+        self.previous_aveage_score
     }
 
     fn bottom_n_with_indices(numbers: &Vec<f32>, n: usize) -> Vec<usize> {
