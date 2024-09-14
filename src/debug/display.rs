@@ -90,7 +90,7 @@ impl eframe::App for NeatNetwork {
                 if let (Some(&input_pos), Some(&output_pos)) = (positions.get(&conn.node_in()), positions.get(&conn.node_out())) {
                     // let color = innovation_to_color(conn.innovation_number());
                     let color = match conn.enabled() {
-                        true => egui::Color32::GREEN,
+                        true => egui::Color32::from_rgba_unmultiplied(0, 255, 0, (conn.weight() * 256.) as u8),
                         false => egui::Color32::from_rgba_unmultiplied(255, 0, 0, 21)
                     };
                     painter.line_segment(
