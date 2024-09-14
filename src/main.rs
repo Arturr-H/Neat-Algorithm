@@ -9,6 +9,7 @@ mod utils;
 use std::{collections::HashMap, sync::{Arc, Mutex}, time::Duration};
 use neural_network::{activation::Activation, network::NeatNetwork, node_gene::{NodeGene, NodeGeneType}};
 use block_blast::board::{self, board::Board, board_error::PlacementError, cell::Cell};
+use trainer::evolution::{self, Evolution, EvolutionBuilder};
 use trainer::{evolution::{Evolution, EvolutionBuilder}, species::Species};
 use rand::Rng;
 
