@@ -9,7 +9,7 @@ mod utils;
 use std::{collections::HashMap, sync::{Arc, Mutex}, time::Duration};
 use neural_network::network::NeatNetwork;
 use block_blast::board::{self, board::Board, board_error::PlacementError, cell::Cell};
-use trainer::evolution::{Evolution, EvolutionBuilder};
+use trainer::evolution::{self, Evolution, EvolutionBuilder};
 use rand::Rng;
 
 fn main() -> () {
@@ -43,13 +43,22 @@ fn main() -> () {
     // these newly mutated genes will become excess because they are taken from
     // the better performing network
     net2.mutate();
+    net1.mutate();
+    net2.mutate();
+    net2.mutate();
+    net2.mutate();
+    net2.mutate();
+    net2.mutate();
+    net2.mutate();
+    net2.mutate();
     net2.mutate();
     net2.mutate();
     
     println!("{:?}", net1.get_genes());
     println!("{:?}", net2.get_genes());
     
-    _evolution.crossover(net1, net2, 1., 2.);
+    _evolution.crossover(&net1, &net2, 1., 2.);
+    net2.create_python_debug_plotting();
     // let xor = vec![((0.0, 0.0), 0.0),
     //                 ((1.0, 0.0), 1.0),
     //                 ((0.0, 1.0), 1.0),

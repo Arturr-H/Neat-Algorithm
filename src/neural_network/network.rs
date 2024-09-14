@@ -128,6 +128,60 @@ impl NeatNetwork {
         }
     }
 
+    pub fn create_python_debug_plotting(&self) {
+        let nodes = &self.node_genes;
+        let mut node_string = String::new();
+        for (index, node) in nodes.iter().enumerate() {
+            let node_type = match node.node_type() {
+                NodeGeneType::Input => "Input",
+                NodeGeneType::Ouptut => "Output",
+                NodeGeneType::Regular => "Regular",
+            };
+            node_string.push_str(&format!("{}: {:?},", index, node_type));
+        }
+
+        let mut connection_string = String::new();
+
+        for connection in &self.connection_genes {
+            connection_string.push_str(&format!("({}, {}),", connection.node_in(), connection.node_out()));
+        }
+
+        let mut layer_positions = String::new();
+        let mut output_layer_index = 0;
+        let mut input_layer_index = 0;
+        let mut hidden_layer_index = 0;
+
+        let number_of_input_nodes = self.input_size;
+        let mut number_of_output_nodes = self.output_size;
+        let number_of_hidden_nodes = self.node_genes.len() - number_of_input_nodes - number_of_output_nodes;
+
+        let width = 10.0;
+        let topo_sort = self.topological_sort().unwrap();
+        for (h, index) in topo_sort.iter().enumerate() {
+            let node = &self.node_genes[*index];
+            let (x, y) = match node.node_type() {
+                NodeGeneType::Input => {
+                    input_layer_index += 1;
+                    (width/number_of_input_nodes as f32 * input_layer_index as f32, 0.)
+                },
+                NodeGeneType::Ouptut => {
+                    output_layer_index += 1;
+                    (width/number_of_output_nodes as f32 * output_layer_index as f32, 20.)
+                },
+                NodeGeneType::Regular => {
+                    hidden_layer_index += 1;
+                    (width/number_of_hidden_nodes as f32 * hidden_layer_index as f32, 2.+ *index as f32)
+                }
+            };
+
+            layer_positions.push_str(&format!("{index}: ({x}, {y}),"));
+        }
+
+        println!("\n\n\n{}", connection_string);
+        println!("{}", node_string);
+        println!("{}", layer_positions);
+    }
+
     /// Create a new network but provide the genes (connections). Used
     /// after crossing over two parents' genes
     pub fn new_with_genes(
