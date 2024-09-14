@@ -10,7 +10,7 @@ use std::{collections::HashMap, sync::{Arc, Mutex}, time::Duration};
 use neural_network::{activation::Activation, network::NeatNetwork, node_gene::{NodeGene, NodeGeneType}};
 use block_blast::board::{self, board::Board, board_error::PlacementError, cell::Cell};
 use trainer::evolution::{self, Evolution, EvolutionBuilder};
-use trainer::{evolution::{Evolution, EvolutionBuilder}, species::Species};
+use trainer::species::Species;
 use rand::Rng;
 
 fn main() -> () {
@@ -26,15 +26,6 @@ fn main() -> () {
         .build();
 
     _evolution.run();
-
-    // let global_innovation = Arc::new(Mutex::new(0));
-    // let global_occupied = Arc::new(Mutex::new(HashMap::new()));
-    // let mut net = NeatNetwork::new(2, 3, global_innovation, global_occupied);
-    // let mut s = Species::new(net, 1);
-    // for i in 0..3000 {
-    //     s.compute_generation(score_network);
-    //     println!("score {}", s.previous_aveage_score());
-    // }
 }
 
 fn score_network(network: &mut NeatNetwork) -> f32 {
