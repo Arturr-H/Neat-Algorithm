@@ -99,6 +99,9 @@ impl EvolutionBuilder {
     /// 
     /// The function could be a game that the network gets to play
     /// and returns the score it managed to get.
+    /// 
+    /// ## WARNING
+    /// Output NEEDS to be bigger than 0
     pub fn set_fitness_function(&mut self, func: fn(&mut NeatNetwork) -> f32) -> &mut Self { self.fitness_function = Some(func); self }
 
     /// Compile all set values and make this
@@ -130,7 +133,12 @@ impl EvolutionBuilder {
                 activations
             );
 
-            species.push(Species::new(representative, species_size));
+            species.push(Species::new(
+                global_innovation_number.clone(),
+                global_occupied_connections.clone(),
+                representative,
+                species_size,
+            ));
         }
 
         Evolution {
@@ -152,10 +160,10 @@ impl Evolution {
         EvolutionBuilder::new()
     }
 
-    pub fn run(&mut self) -> () {
-        for i in 0..1000 {
+    pub fn run(&mut self, evolutions: usize) -> () {
+        for i in 0..evolutions {
             let (avg_score, best_score) = self.generation();
-            println!("Generation {i} Avg: {:.3} Best: {:.3}", avg_score, best_score);
+            println!("Generation {i} Avg: {:.3} Best: {:.3} Inno: {}", avg_score, best_score, *self.global_innovation_number.lock().unwrap());
 
             // std::thread::sleep(std::time::Duration::from_millis(200));
         }
@@ -167,7 +175,16 @@ impl Evolution {
         let mut best_score = 0.0;
 
         for species in self.species.iter_mut() {
-            species.compute_generation(self.fitness_function);
+
+            // Store fitness in each network
+            species.generate_fitness(self.fitness_function);
+
+            // Cross-over
+            species.crossover();
+
+            // Mutate
+            species.compute_generation();
+
             let score = species.previous_average_score();
             total_average_score += score;
             if score > best_score {
@@ -176,133 +193,5 @@ impl Evolution {
         }
 
         (total_average_score / self.species.len() as f32, best_score)
-    }
-
-    pub fn crossover(&self, mut network1: &NeatNetwork, mut network2: &NeatNetwork, fitness1: f32, fitness2: f32) -> NeatNetwork {
-        let mut rng = thread_rng();
-        let mut child_genes: Vec<ConnectionGene> = Vec::new();
-    
-        let mut i = 0;
-        let mut j = 0;
-        
-        let net1_genes = network1.get_genes();
-        let net2_genes = network2.get_genes();
-
-        // Traverse both parent genomes
-        while i < net1_genes.len() && j < net2_genes.len() {
-            let gene1 = &net1_genes[i];
-            let gene2 = &net2_genes[j];
-
-            if gene1.innovation_number() == gene2.innovation_number() {
-                // Matching genes: Randomly inherit from either parent
-                if rand::random() {
-                    println!("----- Inheriting g1");
-                    child_genes.push(gene1.clone());
-                } else {
-                    println!("----- Inheriting g2");
-                    child_genes.push(gene2.clone());
-                }
-                i += 1;
-                j += 1;
-            } else if gene1.innovation_number() < gene2.innovation_number() {
-                // Disjoint gene from net1_genes
-                if fitness1 >= fitness2 {
-                    println!("----- Inheriting d1");
-                    child_genes.push(gene1.clone());
-                }
-                i += 1;
-            } else {
-                // Disjoint gene from net2_genes
-                if fitness2 >= fitness1 {
-                    println!("----- Inheriting d2");
-                    child_genes.push(gene2.clone());
-                }
-                j += 1;
-            }
-        }
-        
-        // Handle excess genes from the longer genome
-        if fitness1 >= fitness2 {
-            while i < net1_genes.len() {
-                println!("----- Inheriting ex1");
-                child_genes.push(net1_genes[i].clone());
-                i += 1;
-            }
-        } else {
-            while j < net2_genes.len() {
-                println!("----- Inheriting ex2");
-                child_genes.push(net2_genes[j].clone());
-                j += 1;
-            }
-        }
-        
-        NeatNetwork::new_with_genes(
-            self.input_nodes, self.input_nodes,
-            self.global_innovation_number.clone(),
-            self.global_occupied_connections.clone(),
-            self.activations,
-            child_genes,
-        )
-    }
-
-    /// Distance
-    pub fn distance(net1: &NeatNetwork, net2: &NeatNetwork) -> f32 {
-        let net1_highest = net1.get_highest_local_innovation();
-        let net2_highest = net2.get_highest_local_innovation();
-
-        // Excess genes are the difference between the maximum
-        // local innovation number of each network. 
-        let mut excess = 0.;
-        let mut highest_local_innovation;
-        if net1_highest > net2_highest {
-            highest_local_innovation = net1_highest;
-            for gene in net1.get_genes() {
-                if gene.innovation_number() > net2_highest { excess += 1.; }
-            }
-        }else {
-            highest_local_innovation = net2_highest;
-            for gene in net2.get_genes() {
-                if gene.innovation_number() > net1_highest { excess += 1.; }
-            }
-        }
-
-        // Average weight of matching genes
-        let mut total_weight_diff = 0.0;
-        let mut matching_weights = 0;
-
-        // Disjoint genes are genes that do not share historical
-        // markings with the other network
-        let mut disjoint = 0.;
-
-        // (node_in, node_out), weight
-        let mut net1_genes = HashMap::new();
-
-        for gene in net1.get_genes() {
-            if gene.innovation_number() <= highest_local_innovation {
-                net1_genes.insert((gene.node_in(), gene.node_out()), gene.weight());
-            }
-        }
-
-        for gene in net2.get_genes() {
-            if gene.innovation_number() <= highest_local_innovation {
-                if let Some(weight) = net1_genes.get(&(gene.node_in(), gene.node_out())) {
-                    matching_weights += 1;
-                    total_weight_diff += (weight - gene.weight()).abs();
-                }else {
-                    disjoint += 1.;
-                }
-            }
-        }
-
-        let average_weight_diff = total_weight_diff / matching_weights as f32;
-
-        // TODO: Do constants
-        let c1 = 1.0;
-        let c2 = 1.0;
-        let c3 = 0.4;
-        let n = net2.get_genes().len().max(net1.get_genes().len()) as f32;
-        let distance = (c1 * excess) / n + (c2 * disjoint) / n + c3 * average_weight_diff;
-
-        distance
     }
 }
