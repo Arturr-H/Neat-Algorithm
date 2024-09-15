@@ -18,27 +18,22 @@ use rand::Rng;
 fn main() -> () {
     // .with_input_nodes(64 /* All cells */ + 36 /* Tiles to choose from */)
     // .with_output_nodes(8/*x*/ + 8/*y - Coordinate for tile placement */ + 3 /*What tile buffer to choose */)
-    // let mut _evolution = Evolution::new()
-    //     .batch_size(1)
-    //     .with_input_nodes(2)
-    //     .with_output_nodes(1)
-    //     .with_output_activation(Activation::Relu)
-    //     .with_input_activation(Activation::Relu)
-    //     .with_species_size(1)
-    //     .set_fitness_function(score_network)
-    //     .build();
+    let mut _evolution = Evolution::new()
+        .batch_size(1)
+        .with_input_nodes(2)
+        .with_output_nodes(1)
+        .with_hidden_activation(Activation::Relu)
+        .with_output_activation(Activation::Relu)
+        .with_species_size(6)
+        .set_fitness_function(score_network)
+        .build();
 
-    // _evolution.run();
+    _evolution.run(15);
 
-    let mut net = NeatNetwork::new(2, 2, Arc::new(Mutex::new(0)), Arc::new(Mutex::new(HashMap::new())), NetworkActivations::new(Activation::Relu, Activation::Relu));
-    for i in 0..20 { net.mutate() };
-    start_debug_display(&net);
-    // let mut s = Species::new(net, 1);
-    // for i in 0..100 {
-    //     s.compute_generation(score_network);
-    //     println!("Score {}", s.previous_average_score());
-    // }
-
+    // let mut net = NeatNetwork::new(2, 3, Arc::new(Mutex::new(0)), Arc::new(Mutex::new(HashMap::new())), NetworkActivations::new(Activation::Relu, Activation::Relu));
+    // println!("{net:?}");
+    // net.mutate();
+    // println!("{net:?}");
 }
 
 fn score_network(network: &mut NeatNetwork) -> f32 {
@@ -51,9 +46,9 @@ fn score_network(network: &mut NeatNetwork) -> f32 {
     for &((input1, input2), expected_output) in xor.iter() {
         let output = network.calculate_output(vec![input1, input2])[0];
         let err = (expected_output - output).abs();
-        println!("{output:?}");
+
         /* 1. - err becasue sigmoid max is = 1 */
-        total_score += 1. - err;
+        total_score += (1. - err).max(0.0);
     }
 
     total_score
