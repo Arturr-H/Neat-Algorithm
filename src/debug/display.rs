@@ -1,105 +1,118 @@
-use std::{collections::HashMap, hash::{DefaultHasher, Hash, Hasher}, os::windows::thread};
+use std::{collections::HashMap, hash::{DefaultHasher, Hash, Hasher}};
 
 /* Imports */
-use eframe::egui::{self, Key, Painter};
+use eframe::egui::{self, Color32, Key, Painter};
 use rand::{thread_rng, Rng};
 use crate::neural_network::{connection_gene::ConnectionGene, network::NeatNetwork, node_gene::{NodeGene, NodeGeneType}};
 
 /* Constants */
-const NODE_SIZE: f32 = 10.;
+const NODE_SIZE: f32 = 5.;
 
-pub fn start_debug_display(network: &NeatNetwork) -> () {
-    let net = network.clone();
+struct Networks(Vec<NeatNetwork>);
+pub fn start_debug_display(networks: Vec<NeatNetwork>) -> () {
     let options = eframe::NativeOptions::default();
     let _ = eframe::run_native(
         "Neat Network",
         options,
-        Box::new(|_cc| Ok(Box::new(net))),
+        Box::new(|_cc| Ok(Box::new(Networks(networks)))),
     ).unwrap();
 }
-// ! Problem: hidden nodes are only displayed after 2 other hidden nodes are added. The nodes are invisible until the 3rd node is added. 
-// ! Problem: hidden nodes are only displayed after 2 other hidden nodes are added. The nodes are invisible until the 3rd node is added. 
-// ! Problem: hidden nodes are only displayed after 2 other hidden nodes are added. The nodes are invisible until the 3rd node is added. 
-impl eframe::App for NeatNetwork {
+
+impl eframe::App for Networks {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
             let painter = ui.painter();
 
             if ctx.input(|i| i.key_released(Key::Space)) {
-                self.mutate();
+                for i in self.0.iter_mut() {
+                    i.mutate();
+                }
                 ctx.request_repaint(); // ! does not fix it
-                println!("{:?}", self.node_genes());
             }
             
             let viewport_rect = ctx.input(|i: &egui::InputState| i.screen_rect());
             let (w, h) = (viewport_rect.width(), viewport_rect.height());
-            let padding = 80.;
+            let padding: f32 = 80.;
+
+            let w_h_ratio = h / w;
+            let amount_of_networks = self.0.len();
+            let cols = (amount_of_networks as f32).sqrt() as usize; // Number of columns
+            let rows = (amount_of_networks + cols - 1) / cols;    // Number of rows
             
-            let mut positions: HashMap<usize, egui::Pos2> = HashMap::new();
-
-            for input_index in 0..self.input_size() {
-                let step_size = (h - padding * 2.0) / (self.input_size() - 1) as f32;
-                let y = step_size * input_index as f32 + padding;
-                let pos = egui::pos2(padding, y);
-                positions.insert(input_index, pos);
-                painter.circle_filled(pos, NODE_SIZE, egui::Color32::YELLOW);
-            }
-
-            let topo = self.topological_sort().unwrap();
-            let connections = self.get_genes();
-            let hidden_size = topo.len() - self.input_size() - self.output_size();
-
-
-            let mut yhash: HashMap<usize, Vec<usize>> = HashMap::new();
-            for &i in &topo {
-                if i < self.input_size() || i >= self.input_size() + hidden_size { continue; }
-                let node = &self.node_genes()[i];
-                let next = get_next_nodes(&connections, self.node_genes(), node);
-                let next_nodes: Vec<NodeGene> = next.into_iter().cloned().collect();
-                let nodes_until_output = search(&connections, &next_nodes, 1).unwrap_or(0);
-                yhash.entry(nodes_until_output).or_insert_with(Vec::new).push(i);
-            }
-
-            let padding_x = 180.0;
-            let padding_y = 80.0;
-            let max_layer = yhash.keys().max().unwrap_or(&0) + 0;
-
-            let output_space_ratio = 0.2;
-            let hidden_space = w - padding_x * 2.0;
-            let hidden_space_end = w - padding_x - (hidden_space * output_space_ratio);
-
-            //hidden nodes
-            for (layer, nodes) in yhash.iter() {
-                let step_size_y = (h - padding_y * 2.0) / nodes.len().max(1) as f32;
-                let x = (*layer as f32 / max_layer as f32) * (hidden_space_end - padding_x) + padding_x;
-
-                for (index, &node_id) in nodes.iter().enumerate() {
-                    let y = index as f32 * step_size_y + padding_y;
-                    let pos = egui::pos2(x, y);
-                    positions.insert(node_id, pos);
-                    painter.circle_filled(pos, NODE_SIZE, egui::Color32::BLUE);
+            let cell_width = w / cols as f32;
+            let cell_height = h / rows as f32;
+            
+            let mut coordinates = Vec::new();
+        
+            for row in 0..rows {
+                for col in 0..cols {
+                    let x = col as f32 * cell_width;
+                    let y = row as f32 * cell_height;
+                    coordinates.push((x, y));
                 }
             }
+        
+            for (index, network) in self.0.iter().enumerate() {
+                let coordinate = coordinates[index];
+                let mut positions: HashMap<u32, Vec<usize>> = HashMap::new();
+                for (index, node_gene) in network.node_genes().iter().enumerate() {
+                    // f32 does not implement hash so we transmute
+                    // it to a u32
+                    let int = unsafe { std::mem::transmute::<f32, u32>(node_gene.x()) };
+                    match positions.get(&int) {
+                        Some(e) => {
+                            positions.get_mut(&int).unwrap().push(index);
+                        },
+                        None => {
+                            positions.insert(int, vec![index]);
+                        },
+                    }
+                }
 
-            // Output nodes
-            for output_index in 0..self.output_size() {
-                let step_size = (h - padding * 2.0) / (self.output_size() - 1) as f32;
-                let y = step_size * output_index as f32 + padding;
-                let pos = egui::pos2(w - padding, y);
-                positions.insert(self.input_size() + hidden_size + output_index, pos);
-                painter.circle_filled(pos, NODE_SIZE, egui::Color32::RED);
-            }
+                let mut k: Vec<&u32> = positions.keys().collect();
+                k.sort();
+                let adjusted_h = cell_height - padding*2.;
+                let adjusted_w = cell_width - padding*2.;
+                let mut node_positions: HashMap<usize, (f32, f32)> = HashMap::new();
 
-            for conn in self.get_genes() {
-                if let (Some(&input_pos), Some(&output_pos)) = (positions.get(&conn.node_in()), positions.get(&conn.node_out())) {
-                    // let color = innovation_to_color(conn.innovation_number());
+                for i in k {
+                    let v: &Vec<usize> = &positions[&i];
+                    let amount_of_nodes = v.len();
+                    let x_factor = unsafe { std::mem::transmute::<u32, f32>(*i) };
+
+                    for (y_fac, node_index) in v.iter().enumerate() {
+                        let node = &network.node_genes()[*node_index];
+                        let x = padding + adjusted_w * x_factor
+                            + coordinate.0;
+                        let y_steps = adjusted_h / ((amount_of_nodes - 1).max(1)) as f32;
+                        let y = padding + (y_fac as f32) * y_steps
+                            + if amount_of_nodes == 1 { adjusted_h / 2. } else { 0. }
+                            + coordinate.1;
+
+                        node_positions.insert(*node_index, (x, y));
+                        let col = match node.node_type() {
+                            NodeGeneType::Input => Color32::YELLOW,
+                            NodeGeneType::Regular => Color32::WHITE,
+                            NodeGeneType::Ouptut => Color32::BLUE,
+                        };
+
+                        painter.circle_filled(egui::Pos2 { x, y }, NODE_SIZE, col);
+                    }
+                }
+
+                for conn in network.get_genes() {
+                    let n_in = conn.node_in();
+                    let n_out = conn.node_out();
+                    let (x1, y1) = node_positions[&n_in];
+                    let (x2, y2) = node_positions[&n_out];
                     let color = match conn.enabled() {
-                        true => egui::Color32::from_rgba_unmultiplied(0, 255, 0, (conn.weight() * 256.) as u8),
-                        false => egui::Color32::from_rgba_unmultiplied(255, 0, 0, 21)
+                        true => Color32::WHITE,
+                        false => Color32::RED
                     };
+
                     painter.line_segment(
-                        [input_pos, output_pos],
-                        (1.0, color),
+                        [(x1, y1).into(), (x2, y2).into()],
+                        (0.4, color),
                     );
                 }
             }

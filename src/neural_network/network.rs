@@ -1,5 +1,5 @@
-use std::{collections::{HashMap, HashSet}, fmt::Debug, sync::{Arc, Mutex}};
-use rand::{rngs::ThreadRng, thread_rng, Rng};
+use std::{collections::{HashMap, HashSet}, fmt::Debug, hash::Hash, sync::{Arc, Mutex}};
+use rand::{rngs::ThreadRng, seq::SliceRandom, thread_rng, Rng};
 use super::{activation::NetworkActivations, connection_gene::ConnectionGene, node_gene::{NodeGene, NodeGeneType}};
 
 #[derive(Clone)]
@@ -45,7 +45,11 @@ pub struct NeatNetwork {
 
     /// The network activation functons for hidden and output
     /// layers (two diffrent)
-    activations: NetworkActivations
+    activations: NetworkActivations,
+
+    /// Stores the previous points which were accumulated during
+    /// the latest fitness evaluation test.
+    fitness: f32,
 }
 
 impl NeatNetwork {
@@ -77,10 +81,10 @@ impl NeatNetwork {
         // Create node genes
         let mut node_genes = Vec::with_capacity(input + output);
         for i in 0..input {
-            node_genes.push(NodeGene::new(i, NodeGeneType::Input));
+            node_genes.push(NodeGene::new(i, NodeGeneType::Input, 0.0));
         }
         for i in input..(input+output) {
-            node_genes.push(NodeGene::new(i, NodeGeneType::Ouptut));
+            node_genes.push(NodeGene::new(i, NodeGeneType::Ouptut, 1.0));
         }
 
         // Create connections genes
@@ -129,116 +133,9 @@ impl NeatNetwork {
             global_occupied_connections,
             local_occupied_connections,
             highest_local_innovation,
-            activations
+            activations,
+            fitness: 0.
         }
-    }
-
-    pub fn debug_split_conn(&mut self, idx: usize) -> () {
-        let current_innovation = self.get_global_innovation();
-        let length = self.connection_genes.len();
-            
-        let gene = &mut self.connection_genes[idx];
-        let gene_node_in = gene.node_in();
-        let gene_node_out = gene.node_out();
-
-        gene.set_enabled(false);
-        self.node_genes.push(NodeGene::new(
-            self.node_gene_index,
-            NodeGeneType::Regular,
-        ));
-
-        let (input_connection, should_increment_ingoing) = Self::create_connection(
-            gene_node_in, self.node_gene_index,
-            1.0,
-            self.global_occupied_connections.clone(),
-            &mut self.local_occupied_connections,
-            &mut self.highest_local_innovation,
-            current_innovation + 1
-        );
-        let (output_connection, should_increment_outgoing) = Self::create_connection(
-            self.node_gene_index, gene_node_out,
-            gene.weight(),
-            self.global_occupied_connections.clone(),
-            &mut self.local_occupied_connections,
-            &mut self.highest_local_innovation,
-            current_innovation + 2
-        );
-
-        // If the genes were actually created we increment the 
-        // innovation number accordingly to match the previous
-        // current_innovation + 1 and + 2
-        if should_increment_ingoing { self.increment_global_innovation(); };
-        if should_increment_outgoing { self.increment_global_innovation(); };
-
-        // Register that we've created a new incoming weight
-        // for the new node, and the updated node and push connection
-        if let Some(input) = input_connection {
-            self.connection_genes.push(input);
-            self.node_genes[self.node_gene_index].register_new_incoming(self.connection_genes.len() - 2);
-        };
-        if let Some(output) = output_connection {
-            self.connection_genes.push(output);
-            self.node_genes[gene_node_out].register_new_incoming(self.connection_genes.len() - 1);
-        };
-
-        self.node_gene_index += 1;
-    }
-
-    pub fn create_python_debug_plotting(&self) {
-        let nodes = &self.node_genes;
-        let mut node_string = String::new();
-        for (index, node) in nodes.iter().enumerate() {
-            let node_type = match node.node_type() {
-                NodeGeneType::Input => "Input",
-                NodeGeneType::Ouptut => "Output",
-                NodeGeneType::Regular => "Regular",
-            };
-            node_string.push_str(&format!("{}: {:?},", index, node_type));
-        }
-
-        let mut connection_string = String::new();
-
-        for connection in &self.connection_genes {
-            connection_string.push_str(&format!("({}, {}),", connection.node_in(), connection.node_out()));
-        }
-
-        let mut layer_positions = String::new();
-        let mut output_layer_index = 0;
-        let mut input_layer_index = 0;
-        let mut hidden_layer_index = 0;
-
-        let number_of_input_nodes = self.input_size;
-        let mut number_of_output_nodes = self.output_size;
-        let number_of_hidden_nodes = self.node_genes.len() - number_of_input_nodes - number_of_output_nodes;
-
-        let width = 10.0;
-        let topo_sort = self.topological_sort().unwrap();
-        for (h, index) in topo_sort.iter().enumerate() {
-            let node = &self.node_genes[*index];
-            let (x, y) = match node.node_type() {
-                NodeGeneType::Input => {
-                    input_layer_index += 1;
-                    (width/number_of_input_nodes as f32 * input_layer_index as f32, 0.)
-                },
-                NodeGeneType::Ouptut => {
-                    output_layer_index += 1;
-                    (width/number_of_output_nodes as f32 * output_layer_index as f32, 20.)
-                },
-                NodeGeneType::Regular => {
-                    hidden_layer_index += 1;
-                    (width/number_of_hidden_nodes as f32 * hidden_layer_index as f32, 2.+ *index as f32)
-                }
-            };
-
-            layer_positions.push_str(&format!("{index}: ({x}, {y}),"));
-        }
-
-        println!("\n\n\n{}", connection_string);
-        println!("{}", node_string);
-        println!("{}", layer_positions);
-
-
-
     }
 
     /// Create a new network but provide the genes (connections). Used
@@ -276,7 +173,9 @@ impl NeatNetwork {
                 _ if i < (input + output) => NodeGeneType::Ouptut,
                 _ => NodeGeneType::Regular
             };
-            node_genes.push(NodeGene::new(i, node_type))
+
+            // TODO NOT 0.5
+            node_genes.push(NodeGene::new(i, node_type, 0.5))
         }
 
         Self {
@@ -289,10 +188,10 @@ impl NeatNetwork {
             global_occupied_connections,
             local_occupied_connections,
             highest_local_innovation,
-            activations
+            activations,
+            fitness: 0.
         }
     }
-
 
     /// Mutates the network in one of many ways
     pub fn mutate(&mut self) -> () {
@@ -301,10 +200,15 @@ impl NeatNetwork {
             /* Randomly select one gene for mutation */
             (50, Self::mutate_random_gene_weight),
             
+            /* Split connection or create new */
             (10, Self::mutate_split_connection),
             (15, Self::mutate_create_connection),
-            
+
+            /* Toggle random connection */
             (10, Self::mutate_toggle_random_gene),
+
+            /* Mutate nothing */
+            (20, |_| {}),
         ];
         
         let total: i32 = probabilities.iter().map(|e| e.0).sum();
@@ -349,13 +253,19 @@ impl NeatNetwork {
         let gene_node_in = gene.node_in();
         let gene_node_out = gene.node_out();
 
-        println!("Mutated: {:?}, mutation: mutate_split_connection", gene);
-
+        let node_in_x = &self.node_genes[gene_node_in].x();
+        let node_out_x = &self.node_genes[gene_node_out].x();
+        let mut new_x;
+        new_x = (node_in_x + node_out_x) / 2.;
+        if node_in_x == node_out_x {
+            new_x *= 1.05;
+        }
 
         gene.set_enabled(false);
         self.node_genes.push(NodeGene::new(
             self.node_gene_index,
             NodeGeneType::Regular,
+            new_x
         ));
 
         let (input_connection, should_increment_ingoing) = Self::create_connection(
@@ -397,31 +307,45 @@ impl NeatNetwork {
 
     }
     
+    /// Create a random connection
+    /// TODO
     fn mutate_create_connection(&mut self) -> () {
-        // TODO: Instead of creating connections between
-        // TODO: output and input, try to also create some
-        // TODO: between the "dynamic" hidden node genes.
-        let current_innovation = self.get_global_innovation();
-        let mut rng = thread_rng();
+        println!("Not implemented (mutate_create_connection)");
+        // let mut rng = thread_rng();
+        // let current_innovation = self.get_global_innovation();
 
-        let node_in = rng.gen_range(0..self.input_size); // input
-        let node_out = rng.gen_range(self.input_size..(self.input_size+self.output_size)); // output
+        // let topology_sorted: HashMap<usize, usize> = self.topological_sort()
+        //     .unwrap()
+        //     .iter()
+        //     .enumerate()
+        //     .map(|(pos, &node)| (node, pos))
+        //     .collect();
 
-        println!("Mutated: {}-{}, mutation: mutate_create_connection", node_in, node_out);
+        // let mut possible_connections: Vec<(usize, usize)> = Vec::new();
+        // for src in 0..self.node_gene_index {
+        //     for dst in 0..self.node_gene_index {
+        //         if topology_sorted[&src] < topology_sorted[&dst] && !self.local_occupied_connections.contains(&(src, dst)) {
+        //             possible_connections.push((src, dst));
+        //         }
+        //     }
+        // }
 
-
-        let (connection, should_increment) = Self::create_connection(
-            node_in, node_out,
-            rng.gen_range(0.05..0.2),
-            self.global_occupied_connections.clone(),
-            &mut self.local_occupied_connections,
-            &mut self.highest_local_innovation,
-            current_innovation + 1,
-        );
-
-        // Increase innovation to match the previous self.get_global_innovation() + 1
-        if should_increment { self.increment_global_innovation(); };
-        if let Some(conn) = connection { self.connection_genes.push(conn); };
+        // if let Some(&(src, dst)) = possible_connections.choose(&mut rng) {
+        //     let (connection, should_increment) = Self::create_connection(
+        //         src, dst,
+        //         rng.gen_range(0.05..0.2),
+        //         self.global_occupied_connections.clone(),
+        //         &mut self.local_occupied_connections,
+        //         &mut self.highest_local_innovation,
+        //         current_innovation + 1,
+        //     );
+    
+        //     // Increase innovation to match the previous self.get_global_innovation() + 1
+        //     if should_increment { self.increment_global_innovation(); };
+        //     if let Some(conn) = connection { self.connection_genes.push(conn); };
+        // } else {
+        //     // No valid connection can be made
+        // }
     }
 
     /// Tries to create a new connection. If the connection already
@@ -588,6 +512,14 @@ impl NeatNetwork {
     pub fn input_size(&self) -> usize { self.input_size }
     pub fn output_size(&self) -> usize { self.output_size }
     pub fn node_genes(&self) -> &Vec<NodeGene> { &self.node_genes }
+    pub fn fitness(&self) -> f32 { self.fitness }
+    pub fn activations(&self) -> NetworkActivations { self.activations }
+
+    /// Store the fitness of the current network
+    pub fn evaluate_fitness(&mut self, fitness_func: fn(&mut Self) -> f32) -> () {
+        let score = (fitness_func)(self);
+        self.fitness = score;
+    }
 }
 
 impl Debug for NeatNetwork {
