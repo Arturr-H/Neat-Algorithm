@@ -16,8 +16,10 @@ use trainer::species::Species;
 use rand::Rng;
 
 fn main() -> () {
-    let mut net = NeatNetwork::new(5, 1, Arc::new(Mutex::new(0)), Arc::new(Mutex::new(HashMap::new())), NetworkActivations::new(Activation::Relu, Activation::Relu));
-    start_debug_display(vec![net.clone(), net.clone(), net.clone(), net.clone(), net.clone(), net.clone()]);
+    let mut net = NeatNetwork::new(3, 2, Arc::new(Mutex::new(0)), Arc::new(Mutex::new(HashMap::new())), NetworkActivations::new(Activation::Relu, Activation::Relu));
+    start_debug_display(
+            Species::new(Arc::new(Mutex::new(0)), Arc::new(Mutex::new(HashMap::new())), net.clone(), 6)
+        );
 
 }
 

@@ -304,8 +304,10 @@ impl NeatNetwork {
 
         self.node_gene_index += 1;
 
-
+        
     }
+
+
     
     /// Create a random connection
     /// TODO
@@ -400,6 +402,10 @@ impl NeatNetwork {
                 (Some(ConnectionGene::new(node_in, node_out, weight, innovation_number)), true)
             }
         }
+    }
+
+    pub fn title(&self, text: String) -> String {
+        format!("{} ({})", text, self.fitness())
     }
 
     /// Takes the input vector, and propagates it through all

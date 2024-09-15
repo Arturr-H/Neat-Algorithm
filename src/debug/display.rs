@@ -1,15 +1,15 @@
 use std::{collections::HashMap, hash::{DefaultHasher, Hash, Hasher}};
 
 /* Imports */
-use eframe::egui::{self, Color32, Key, Painter};
+use eframe::egui::{self, pos2, Align2, Color32, FontId, Key, Painter};
 use rand::{thread_rng, Rng};
-use crate::neural_network::{connection_gene::ConnectionGene, network::NeatNetwork, node_gene::{NodeGene, NodeGeneType}};
+use crate::{neural_network::{connection_gene::ConnectionGene, network::NeatNetwork, node_gene::{NodeGene, NodeGeneType}}, trainer::species::Species};
 
 /* Constants */
 const NODE_SIZE: f32 = 5.;
 
-struct Networks(Vec<NeatNetwork>);
-pub fn start_debug_display(networks: Vec<NeatNetwork>) -> () {
+struct Networks(Species);
+pub fn start_debug_display(networks: Species) -> () {
     let options = eframe::NativeOptions::default();
     let _ = eframe::run_native(
         "Neat Network",
@@ -24,10 +24,9 @@ impl eframe::App for Networks {
             let painter = ui.painter();
 
             if ctx.input(|i| i.key_down(Key::Space)) {
-                for i in self.0.iter_mut() {
+                for i in self.0.networks_mut().iter_mut() {
                     i.mutate();
                 }
-                // ctx.request_repaint(); // ! does not fix it
             }
             
             let viewport_rect = ctx.input(|i: &egui::InputState| i.screen_rect());
@@ -35,7 +34,7 @@ impl eframe::App for Networks {
             let padding: f32 = 80.;
 
             let w_h_ratio = h / w;
-            let amount_of_networks = self.0.len();
+            let amount_of_networks = self.0.networks().len();
             let cols = (amount_of_networks as f32).sqrt() as usize; // Number of columns
             let rows = (amount_of_networks + cols - 1) / cols;    // Number of rows
             
@@ -43,7 +42,6 @@ impl eframe::App for Networks {
             let cell_height = h / rows as f32;
             
             let mut coordinates = Vec::new();
-        
             for row in 0..rows {
                 for col in 0..cols {
                     let x = col as f32 * cell_width;
@@ -51,9 +49,10 @@ impl eframe::App for Networks {
                     coordinates.push((x, y));
                 }
             }
-        
-            for (index, network) in self.0.iter().enumerate() {
+            
+            for (index, network) in self.0.networks().iter().enumerate() {
                 let coordinate = coordinates[index];
+                painter.text(pos2(coordinate.0 + cell_width / 2., coordinate.1 + 40.), Align2::CENTER_CENTER, format!("{} ({})", self.0.get_name(), network.fitness()), FontId::default(), Color32::WHITE);
                 let mut positions: HashMap<u32, Vec<usize>> = HashMap::new();
                 for (index, node_gene) in network.node_genes().iter().enumerate() {
                     // f32 does not implement hash so we transmute
@@ -92,8 +91,8 @@ impl eframe::App for Networks {
                         node_positions.insert(*node_index, (x, y));
                         let col = match node.node_type() {
                             NodeGeneType::Input => Color32::GREEN,
-                            NodeGeneType::Regular => Color32::BLUE,
-                            NodeGeneType::Output => Color32::RED,
+                            NodeGeneType::Regular => Color32::WHITE,
+                            NodeGeneType::Output => Color32::BLUE,
                         };
 
                         painter.circle_filled(egui::Pos2 { x, y }, NODE_SIZE, col);
