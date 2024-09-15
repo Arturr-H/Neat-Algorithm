@@ -50,6 +50,9 @@ pub struct NeatNetwork {
     /// Stores the previous points which were accumulated during
     /// the latest fitness evaluation test.
     fitness: f32,
+
+    /// The index of the species group this network is in.
+    species_index: usize,
 }
 
 impl NeatNetwork {
@@ -76,7 +79,8 @@ impl NeatNetwork {
         output: usize,
         global_innovation: Arc<Mutex<usize>>,
         global_occupied_connections: Arc<Mutex<HashMap<(usize, usize), usize>>>,
-        activations: NetworkActivations
+        activations: NetworkActivations,
+        species_index: usize
     ) -> Self {
         // Create node genes
         let mut node_genes = Vec::with_capacity(input + output);
@@ -134,7 +138,8 @@ impl NeatNetwork {
             local_occupied_connections,
             highest_local_innovation,
             activations,
-            fitness: 0.
+            fitness: 0.,
+            species_index
         }
     }
 
@@ -147,6 +152,7 @@ impl NeatNetwork {
         global_occupied_connections: Arc<Mutex<HashMap<(usize, usize), usize>>>,
         activations: NetworkActivations,
         connection_genes: Vec<ConnectionGene>,
+        species_index: usize
     ) -> Self {
         let mut highest_local_innovation = 0;
         let mut local_occupied_connections = HashSet::new();
@@ -175,7 +181,11 @@ impl NeatNetwork {
             };
 
             // TODO NOT 0.5
-            node_genes.push(NodeGene::new(i, node_type, 0.5))
+            node_genes.push(NodeGene::new(i, node_type, match node_type {
+                NodeGeneType::Input => 0.0,
+                NodeGeneType::Regular => 0.5,
+                NodeGeneType::Output => 1.0,
+            }))
         }
 
         Self {
@@ -189,7 +199,8 @@ impl NeatNetwork {
             local_occupied_connections,
             highest_local_innovation,
             activations,
-            fitness: 0.
+            fitness: 0.,
+            species_index
         }
     }
 
@@ -230,7 +241,6 @@ impl NeatNetwork {
         let length = self.connection_genes.len();
         let gene = &mut self.connection_genes[rng.gen_range(0..length)];
         gene.mutate_weight();
-        println!("Mutated: {:?}, mutation: mutate_random_gene_weight", gene);
     }
 
     fn mutate_toggle_random_gene(&mut self) -> () {
@@ -239,11 +249,9 @@ impl NeatNetwork {
         let length = self.connection_genes.len();
         let gene = &mut self.connection_genes[rng.gen_range(0..length)];
         gene.set_enabled(rng.gen_bool(0.5));
-        println!("Mutated: {:?}, mutation: mutate_toggle_random_gene", gene);
     }
 
     fn mutate_split_connection(&mut self) -> () {
-
         if self.get_genes().len() < 1 { return; };
         let mut rng = thread_rng();
         let current_innovation = self.get_global_innovation();
@@ -303,16 +311,11 @@ impl NeatNetwork {
         };
 
         self.node_gene_index += 1;
-
-        
     }
 
-
-    
     /// Create a random connection
     /// TODO
     fn mutate_create_connection(&mut self) -> () {
-        println!("Not implemented (mutate_create_connection)");
         // let mut rng = thread_rng();
         // let current_innovation = self.get_global_innovation();
 
@@ -405,7 +408,7 @@ impl NeatNetwork {
     }
 
     pub fn title(&self, text: String) -> String {
-        format!("{} ({})", text, self.fitness())
+        format!("{} ({:.3})", text, self.fitness())
     }
 
     /// Takes the input vector, and propagates it through all
@@ -517,6 +520,7 @@ impl NeatNetwork {
     // Getters
     pub fn input_size(&self) -> usize { self.input_size }
     pub fn output_size(&self) -> usize { self.output_size }
+    pub fn species_index(&self) -> usize { self.species_index }
     pub fn node_genes(&self) -> &Vec<NodeGene> { &self.node_genes }
     pub fn fitness(&self) -> f32 { self.fitness }
     pub fn activations(&self) -> NetworkActivations { self.activations }
