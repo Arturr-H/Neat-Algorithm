@@ -62,8 +62,6 @@ impl Species {
         & self.networks
     }
 
-    
-    
     /// Makes every net go trough a fitness function and determines the top 
     /// 30% of all nets. These nets automatically go to the next generation
     /// without changes. The 70% of the rest networks are randomly mutated
@@ -86,7 +84,7 @@ impl Species {
 
     /// Crossover two parents and insert offspring
     /// TODO
-    pub fn crossover(&mut self) -> () {
+    pub fn crossover(&mut self, fitness_function: fn(&mut NeatNetwork) -> f32) -> () {
         assert!(self.networks.len() > 1);
         let mut rng = thread_rng();
 
@@ -103,10 +101,16 @@ impl Species {
             .collect();
 
         let mut networks = Vec::new();
+        let mut worst_performing: (usize, f32) = (0, f32::MAX);
         for i in 0..2 {
             let mut cumulative = 0.0;
             let mut random_fitness = rng.gen_range(0.0..summed_fitness);
-            for (fitness, net) in &networks_with_fitness {
+            for (network_index, (fitness, net)) in networks_with_fitness.iter().enumerate() {
+                if fitness < &worst_performing.1 {
+                    worst_performing.0 = network_index;
+                    worst_performing.1 = *fitness;
+                }
+
                 cumulative += fitness;
                 if random_fitness < cumulative {
                     networks.push((net, fitness));
@@ -114,11 +118,10 @@ impl Species {
             }
         }
 
-        println!("dst {}", Self::distance(networks[0].0, networks[1].0));
-        println!("n1 {}", networks[0].0.get_genes().len());
-        println!("n2 {}", networks[1].0.get_genes().len());
-        let offspring = self.crossover_networks(networks[0].0, networks[1].0, *networks[0].1, *networks[1].1);
-        println!("offs {}", offspring.get_genes().len());
+        // TODO I dont know if we should be replacing the worst with offspring but hey
+        let mut offspring = self.crossover_networks(networks[0].0, networks[1].0, *networks[0].1, *networks[1].1);
+        offspring.evaluate_fitness(fitness_function);
+        self.networks[worst_performing.0] = offspring;
     }
 
     /// Get the offspring of two networks
@@ -173,6 +176,10 @@ impl Species {
                 j += 1;
             }
         }
+
+        println!("NET1 GENES {:?}", net1_genes);
+        println!("NET2 GENES {:?}", net2_genes);
+        println!("CHLD GENES {:?}", &child_genes);
         
         NeatNetwork::new_with_genes(
             network1.input_size(), network1.output_size(),
@@ -180,6 +187,7 @@ impl Species {
             self.global_occupied_connections.clone(),
             network1.activations(),
             child_genes,
+            network1.species_index()
         )
     }
 
@@ -271,45 +279,21 @@ impl Species {
 
     fn generate_name() -> String {
         let prefixes = vec![
-            "Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta", "Eta", "Theta", "Iota", "Kappa", 
-            "Lambda", "Mu", "Nu", "Xi", "Omicron", "Pi", "Rho", "Sigma", "Tau", "Upsilon", "Phi", 
-            "Chi", "Psi", "Omega", "Neo", "Mega", "Ultra", "Hyper", "Super", "Omni", "Multi", 
-            "Poly", "Macro", "Micro", "Crypto", "Pseudo", "Proto", "Meta", "Para", "Syn", "Endo", 
-            "Exo", "Iso", "Hetero", "Homo", "Mono", "Bi", "Tri", "Tetra", "Penta", "Hexa", "Octo", 
-            "Deca", "Dodeca", "Iso", "Allo", "Xeno", "Cyber", "Quantum", "Nano", "Pico", "Femto", 
-            "Atto", "Zepto", "Yocto",
-
-            "Neuro", "Psycho", "Cogni", "Bio", "Electro", "Chemo", "Thermo", "Chrono", "Tele", "Geo",
-            "Hydro", "Aero", "Cosmo", "Astro", "Techno", "Socio", "Eco", "Physio", "Patho", "Immuno",
-            "Pharma", "Geno", "Proteo", "Glyco", "Lipo", "Onco", "Cardio", "Nephro", "Gastro", "Hepato",
-            "Dermato", "Ophthalmo", "Oto", "Rhino", "Pneumo", "Hema", "Angio", "Myo", "Osteo", "Arthro",
-            "Endo", "Exo", "Meso", "Ecto", "Tropho", "Morpho", "Phylo", "Onto", "Ethno", "Archaeo"
+            "Quantum", "Sigma", "Big", "Fat", "Ugly", "Hawk", "Fentanyl overdosing",
+            "Quandale", "Strong", "Obese", "Plus sized", "Retard", "Drug addicted",
+            "Child abusing", "Nerdy", "Holy", "Gay", "Fat ass", "Bitch ass", "Dumb",
+            "Cute", "Petite", "Optimum", "Street"
         ];
         let suffixes = vec![
-            " neuron", " synapse", " cortex", " dendrite", " axon", " soma", " ganglion", " plexus",
-            " nucleus", " cerebrum", " thalamus", " amygdala", " hippocampus", " cerebellum",
-            " neurite", " astrocyte", " oligodendrocyte", " microglia", " myelin", " neurotransmitter",
-            " receptor", " ion", " channel", " potential", " synapsis", " neuroplasticity", " cognition",
-            " memory", " learning", " perception", " sensation", " motor", " reflex", " instinct",
-            " behavior", " emotion", " consciousness", " subcortex", " neocortex", " brainstem",
-            " hypothalamus", " pituitary", " corpus callosum", " gyrus", " sulcus", " fissure",
-            " lobe", " hemisphere", " ventricle", " meninges", " cerebrospinal", " glial", " neural",
-            " synaptic", " axonal", " dendritic", " somatic", " myelinated", " unmyelinated", " efferent",
-            " afferent", " interneuron", " projection", " sensory", " motor", " association", " plasticity",
-            " potentiation", " depression", " habituation", " sensitization", " conditioning",
-
-            "pathy", "osis", "itis", "oma", "ase", "lysis", "genesis", "poiesis", "stasis", "tropism",
-            "taxis", "kinesis", "plasm", "blast", "cyte", "phage", "phil", "phobe", "troph", "stat",
-            "gram", "graph", "scope", "meter", "logy", "ology", "onomy", "ics", "ism", "ist",
-            "oid", "form", "morph", "genic", "genic", "lytic", "penic", "tropic", "philic", "phobic",
-            "tonic", "static", "dynamic", "kinetic", "ergic", "phoretic", "ferrous", "phorous", "valent",
-            "ferous", "vorous", "colous", "parous", "gamous", "type", "some", "ploid", "zoa", "pod"
+            "machine", "motor", "engine", "brain", "tuah", "ass", "combustion engine",
+            "grease ball", "gambling addict", "Aaron", "Artur", "Hjalmar", "Peter", "swiftie",
+            "shitter", "dumpster",
         ];
 
         let mut rng = thread_rng();
         let prefix = prefixes[rng.gen_range(0..prefixes.len())];
         let suffix = suffixes[rng.gen_range(0..suffixes.len())];
-        (prefix.to_string() + suffix).to_string()
+        (prefix.to_string() + " " + suffix).to_string()
     }
 
 

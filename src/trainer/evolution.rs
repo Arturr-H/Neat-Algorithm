@@ -130,7 +130,8 @@ impl EvolutionBuilder {
                 output_nodes,
                 global_innovation_number.clone(),
                 global_occupied_connections.clone(),
-                activations
+                activations,
+                i
             );
 
             species.push(Species::new(
@@ -180,7 +181,7 @@ impl Evolution {
             species.generate_fitness(self.fitness_function);
 
             // Cross-over
-            species.crossover();
+            species.crossover(self.fitness_function);
 
             // Mutate
             species.compute_generation();
@@ -193,5 +194,10 @@ impl Evolution {
         }
 
         (total_average_score / self.species.len() as f32, best_score)
+    }
+
+    /// Returns a reference to all species
+    pub fn species(&self) -> &Vec<Species> {
+        &self.species
     }
 }

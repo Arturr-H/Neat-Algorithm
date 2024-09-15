@@ -16,10 +16,20 @@ use trainer::species::Species;
 use rand::Rng;
 
 fn main() -> () {
-    let mut net = NeatNetwork::new(2, 1, Arc::new(Mutex::new(0)), Arc::new(Mutex::new(HashMap::new())), NetworkActivations::new(Activation::Relu, Activation::Relu));
-    start_debug_display(
-            Species::new(Arc::new(Mutex::new(0)), Arc::new(Mutex::new(HashMap::new())), net.clone(), 6)
-        );
+    let mut _evolution = Evolution::new()
+        .batch_size(100)
+        .with_input_nodes(2)
+        .with_output_nodes(1)
+        .with_hidden_activation(Activation::Relu)
+        .with_output_activation(Activation::Relu)
+        .with_species_size(6)
+        .set_fitness_function(score_network)
+        .build();
+
+    // _evolution.run(15);
+    // let mut net = NeatNetwork::new(2, 1, Arc::new(Mutex::new(0)), Arc::new(Mutex::new(HashMap::new())), NetworkActivations::new(Activation::Relu, Activation::Relu));
+    // Species::new(Arc::new(Mutex::new(0)), Arc::new(Mutex::new(HashMap::new())), net.clone(), 6)
+    start_debug_display(_evolution);
 }
 
 pub fn score_network(network: &mut NeatNetwork) -> f32 {
