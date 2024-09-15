@@ -149,17 +149,14 @@ impl Species {
                 }
                 i += 1;
                 j += 1;
-            } else if gene1.innovation_number() < gene2.innovation_number() {
+            } else {
                 // Disjoint gene from net1_genes
                 if fitness1 >= fitness2 {
                     child_genes.push(gene1.clone());
-                }
-                i += 1;
-            } else {
-                // Disjoint gene from net2_genes
-                if fitness2 >= fitness1 {
+                }else {
                     child_genes.push(gene2.clone());
                 }
+                i += 1;
                 j += 1;
             }
         }
@@ -177,10 +174,6 @@ impl Species {
             }
         }
 
-        println!("NET1 GENES {:?}", net1_genes);
-        println!("NET2 GENES {:?}", net2_genes);
-        println!("CHLD GENES {:?}", &child_genes);
-        
         NeatNetwork::new_with_genes(
             network1.input_size(), network1.output_size(),
             self.global_innovation_number.clone(),
