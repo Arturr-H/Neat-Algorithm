@@ -17,14 +17,18 @@ pub fn start_debug_display(network: &NeatNetwork) -> () {
         Box::new(|_cc| Ok(Box::new(net))),
     ).unwrap();
 }
-
+// ! Problem: hidden nodes are only displayed after 2 other hidden nodes are added. The nodes are invisible until the 3rd node is added. 
+// ! Problem: hidden nodes are only displayed after 2 other hidden nodes are added. The nodes are invisible until the 3rd node is added. 
+// ! Problem: hidden nodes are only displayed after 2 other hidden nodes are added. The nodes are invisible until the 3rd node is added. 
 impl eframe::App for NeatNetwork {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
             let painter = ui.painter();
 
-            if ctx.input(|i| i.key_down(Key::Space)) {
+            if ctx.input(|i| i.key_released(Key::Space)) {
                 self.mutate();
+                ctx.request_repaint(); // ! does not fix it
+                println!("{:?}", self.node_genes());
             }
             
             let viewport_rect = ctx.input(|i: &egui::InputState| i.screen_rect());
