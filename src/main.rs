@@ -16,14 +16,13 @@ use trainer::species::Species;
 use rand::Rng;
 
 fn main() -> () {
-    let mut net = NeatNetwork::new(3, 2, Arc::new(Mutex::new(0)), Arc::new(Mutex::new(HashMap::new())), NetworkActivations::new(Activation::Relu, Activation::Relu));
+    let mut net = NeatNetwork::new(2, 1, Arc::new(Mutex::new(0)), Arc::new(Mutex::new(HashMap::new())), NetworkActivations::new(Activation::Relu, Activation::Relu));
     start_debug_display(
             Species::new(Arc::new(Mutex::new(0)), Arc::new(Mutex::new(HashMap::new())), net.clone(), 6)
         );
-
 }
 
-fn score_network(network: &mut NeatNetwork) -> f32 {
+pub fn score_network(network: &mut NeatNetwork) -> f32 {
     let xor = vec![((0.0, 0.0), 0.0),
                     ((1.0, 0.0), 1.0),
                     ((0.0, 1.0), 1.0),

@@ -62,39 +62,8 @@ impl Species {
         & self.networks
     }
 
-    fn generate_name() -> String {
-        let prefixes = vec![
-            "Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta", "Eta", "Theta", "Iota", "Kappa", 
-            "Lambda", "Mu", "Nu", "Xi", "Omicron", "Pi", "Rho", "Sigma", "Tau", "Upsilon", "Phi", 
-            "Chi", "Psi", "Omega", "Neo", "Mega", "Ultra", "Hyper", "Super", "Omni", "Multi", 
-            "Poly", "Macro", "Micro", "Crypto", "Pseudo", "Proto", "Meta", "Para", "Syn", "Endo", 
-            "Exo", "Iso", "Hetero", "Homo", "Mono", "Bi", "Tri", "Tetra", "Penta", "Hexa", "Octo", 
-            "Deca", "Dodeca", "Iso", "Allo", "Xeno", "Cyber", "Quantum", "Nano", "Pico", "Femto", 
-            "Atto", "Zepto", "Yocto"
-        ];
-        let suffixes = vec![
-            "neuron", "synapse", "cortex", "dendrite", "axon", "soma", "ganglion", "plexus",
-            "nucleus", "cerebrum", "thalamus", "amygdala", "hippocampus", "cerebellum",
-            "neurite", "astrocyte", "oligodendrocyte", "microglia", "myelin", "neurotransmitter",
-            "receptor", "ion", "channel", "potential", "synapsis", "neuroplasticity", "cognition",
-            "memory", "learning", "perception", "sensation", "motor", "reflex", "instinct",
-            "behavior", "emotion", "consciousness", "subcortex", "neocortex", "brainstem",
-            "hypothalamus", "pituitary", "corpus callosum", "gyrus", "sulcus", "fissure",
-            "lobe", "hemisphere", "ventricle", "meninges", "cerebrospinal", "glial", "neural",
-            "synaptic", "axonal", "dendritic", "somatic", "myelinated", "unmyelinated", "efferent",
-            "afferent", "interneuron", "projection", "sensory", "motor", "association", "plasticity",
-            "potentiation", "depression", "habituation", "sensitization", "conditioning"
-        ];
-
-        let mut rng = thread_rng();
-        let prefix = prefixes[rng.gen_range(0..prefixes.len())];
-        let suffix = suffixes[rng.gen_range(0..suffixes.len())];
-        (prefix.to_string() + " " + suffix).to_string()
-    }
-
-    pub fn get_name(&self) -> &str {
-        &self.name
-    }
+    
+    
     /// Makes every net go trough a fitness function and determines the top 
     /// 30% of all nets. These nets automatically go to the next generation
     /// without changes. The 70% of the rest networks are randomly mutated
@@ -112,6 +81,7 @@ impl Species {
             let bottom_net = &mut self.networks[bottom_network_idx];
             bottom_net.mutate();
         }
+        
     }
 
     /// Crossover two parents and insert offspring
@@ -298,4 +268,42 @@ impl Species {
         indexed_numbers.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
         indexed_numbers.into_iter().take(n).map(|(i, _)| i).collect()
     }
+
+    fn generate_name() -> String {
+        let prefixes = vec![
+            "Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta", "Eta", "Theta", "Iota", "Kappa", 
+            "Lambda", "Mu", "Nu", "Xi", "Omicron", "Pi", "Rho", "Sigma", "Tau", "Upsilon", "Phi", 
+            "Chi", "Psi", "Omega", "Neo", "Mega", "Ultra", "Hyper", "Super", "Omni", "Multi", 
+            "Poly", "Macro", "Micro", "Crypto", "Pseudo", "Proto", "Meta", "Para", "Syn", "Endo", 
+            "Exo", "Iso", "Hetero", "Homo", "Mono", "Bi", "Tri", "Tetra", "Penta", "Hexa", "Octo", 
+            "Deca", "Dodeca", "Iso", "Allo", "Xeno", "Cyber", "Quantum", "Nano", "Pico", "Femto", 
+            "Atto", "Zepto", "Yocto"
+        ];
+        let suffixes = vec![
+            "neuron", "synapse", "cortex", "dendrite", "axon", "soma", "ganglion", "plexus",
+            "nucleus", "cerebrum", "thalamus", "amygdala", "hippocampus", "cerebellum",
+            "neurite", "astrocyte", "oligodendrocyte", "microglia", "myelin", "neurotransmitter",
+            "receptor", "ion", "channel", "potential", "synapsis", "neuroplasticity", "cognition",
+            "memory", "learning", "perception", "sensation", "motor", "reflex", "instinct",
+            "behavior", "emotion", "consciousness", "subcortex", "neocortex", "brainstem",
+            "hypothalamus", "pituitary", "corpus callosum", "gyrus", "sulcus", "fissure",
+            "lobe", "hemisphere", "ventricle", "meninges", "cerebrospinal", "glial", "neural",
+            "synaptic", "axonal", "dendritic", "somatic", "myelinated", "unmyelinated", "efferent",
+            "afferent", "interneuron", "projection", "sensory", "motor", "association", "plasticity",
+            "potentiation", "depression", "habituation", "sensitization", "conditioning"
+        ];
+
+        let mut rng = thread_rng();
+        let prefix = prefixes[rng.gen_range(0..prefixes.len())];
+        let suffix = suffixes[rng.gen_range(0..suffixes.len())];
+        (prefix.to_string() + " " + suffix).to_string()
+    }
+
+
+    // Getters
+    pub fn get_name(&self) -> &str {
+        &self.name
+    }
+
+    
 }

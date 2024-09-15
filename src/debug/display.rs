@@ -3,7 +3,7 @@ use std::{collections::HashMap, hash::{DefaultHasher, Hash, Hasher}};
 /* Imports */
 use eframe::egui::{self, pos2, Align2, Color32, FontId, Key, Painter};
 use rand::{thread_rng, Rng};
-use crate::{neural_network::{connection_gene::ConnectionGene, network::NeatNetwork, node_gene::{NodeGene, NodeGeneType}}, trainer::species::Species};
+use crate::{neural_network::{connection_gene::ConnectionGene, network::NeatNetwork, node_gene::{NodeGene, NodeGeneType}}, score_network, trainer::species::Species};
 
 /* Constants */
 const NODE_SIZE: f32 = 5.;
@@ -24,9 +24,11 @@ impl eframe::App for Networks {
             let painter = ui.painter();
 
             if ctx.input(|i| i.key_down(Key::Space)) {
-                for i in self.0.networks_mut().iter_mut() {
-                    i.mutate();
-                }
+                let best_parent = self.0.networks().iter().max_by(|a, b| a.fitness().partial_cmp(&b.fitness()).unwrap()).unwrap().clone();
+
+                self.0.generate_fitness(score_network);
+                self.0.compute_generation();
+
             }
             
             let viewport_rect = ctx.input(|i: &egui::InputState| i.screen_rect());
