@@ -16,24 +16,9 @@ use trainer::species::Species;
 use rand::Rng;
 
 fn main() -> () {
-    // .with_input_nodes(64 /* All cells */ + 36 /* Tiles to choose from */)
-    // .with_output_nodes(8/*x*/ + 8/*y - Coordinate for tile placement */ + 3 /*What tile buffer to choose */)
-    let mut _evolution = Evolution::new()
-        .batch_size(1)
-        .with_input_nodes(2)
-        .with_output_nodes(1)
-        .with_hidden_activation(Activation::Relu)
-        .with_output_activation(Activation::Relu)
-        .with_species_size(6)
-        .set_fitness_function(score_network)
-        .build();
+    let mut net = NeatNetwork::new(5, 1, Arc::new(Mutex::new(0)), Arc::new(Mutex::new(HashMap::new())), NetworkActivations::new(Activation::Relu, Activation::Relu));
+    start_debug_display(vec![net.clone(), net.clone(), net.clone(), net.clone(), net.clone(), net.clone()]);
 
-    _evolution.run(15);
-
-    // let mut net = NeatNetwork::new(2, 3, Arc::new(Mutex::new(0)), Arc::new(Mutex::new(HashMap::new())), NetworkActivations::new(Activation::Relu, Activation::Relu));
-    // println!("{net:?}");
-    // net.mutate();
-    // println!("{net:?}");
 }
 
 fn score_network(network: &mut NeatNetwork) -> f32 {

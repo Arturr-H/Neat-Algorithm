@@ -4,7 +4,7 @@
 
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub enum NodeGeneType {
-    Input, Ouptut, Regular
+    Input, Output, Regular
 }
 
 #[derive(Clone)]
@@ -77,7 +77,7 @@ impl std::fmt::Debug for NodeGeneType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let type_str = match self {
             NodeGeneType::Input => "I",
-            NodeGeneType::Ouptut => "O",
+            NodeGeneType::Output => "O",
             NodeGeneType::Regular => "R",
         };
 

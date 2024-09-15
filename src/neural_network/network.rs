@@ -84,7 +84,7 @@ impl NeatNetwork {
             node_genes.push(NodeGene::new(i, NodeGeneType::Input, 0.0));
         }
         for i in input..(input+output) {
-            node_genes.push(NodeGene::new(i, NodeGeneType::Ouptut, 1.0));
+            node_genes.push(NodeGene::new(i, NodeGeneType::Output, 1.0));
         }
 
         // Create connections genes
@@ -170,7 +170,7 @@ impl NeatNetwork {
         for i in 0..highest_node_index + 1 {
             let node_type = match i {
                 _ if i < input => NodeGeneType::Input,
-                _ if i < (input + output) => NodeGeneType::Ouptut,
+                _ if i < (input + output) => NodeGeneType::Output,
                 _ => NodeGeneType::Regular
             };
 
@@ -436,7 +436,7 @@ impl NeatNetwork {
                 NodeGeneType::Regular => {
                     activated_sum = self.activations.hidden.run(&vec![sum], 0);
                 },
-                NodeGeneType::Ouptut => {
+                NodeGeneType::Output => {
                     // We won't activate the output nodes here yet, as we will
                     // do it later on in this function
                     activated_sum = sum;

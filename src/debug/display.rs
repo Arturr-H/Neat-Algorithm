@@ -23,11 +23,11 @@ impl eframe::App for Networks {
         egui::CentralPanel::default().show(ctx, |ui| {
             let painter = ui.painter();
 
-            if ctx.input(|i| i.key_released(Key::Space)) {
+            if ctx.input(|i| i.key_down(Key::Space)) {
                 for i in self.0.iter_mut() {
                     i.mutate();
                 }
-                ctx.request_repaint(); // ! does not fix it
+                // ctx.request_repaint(); // ! does not fix it
             }
             
             let viewport_rect = ctx.input(|i: &egui::InputState| i.screen_rect());
@@ -91,9 +91,9 @@ impl eframe::App for Networks {
 
                         node_positions.insert(*node_index, (x, y));
                         let col = match node.node_type() {
-                            NodeGeneType::Input => Color32::YELLOW,
-                            NodeGeneType::Regular => Color32::WHITE,
-                            NodeGeneType::Ouptut => Color32::BLUE,
+                            NodeGeneType::Input => Color32::GREEN,
+                            NodeGeneType::Regular => Color32::BLUE,
+                            NodeGeneType::Output => Color32::RED,
                         };
 
                         painter.circle_filled(egui::Pos2 { x, y }, NODE_SIZE, col);
@@ -112,7 +112,7 @@ impl eframe::App for Networks {
 
                     painter.line_segment(
                         [(x1, y1).into(), (x2, y2).into()],
-                        (0.4, color),
+                        (conn.weight().max(0.2), color),
                     );
                 }
             }
@@ -120,23 +120,9 @@ impl eframe::App for Networks {
     }
 }
 
-fn innovation_to_color(innovation_number: usize) -> egui::Color32 {
-    // Use a hash function to get a consistent "random" number from the innovation number
-    let mut hasher = DefaultHasher::new();
-    innovation_number.hash(&mut hasher);
-    let hash = hasher.finish();
-
-    // Use the hash to generate RGB values
-    let r = ((hash & 0xFF0000) >> 16) as u8;
-    let g = ((hash & 0x00FF00) >> 8) as u8;
-    let b = (hash & 0x0000FF) as u8;
-
-    egui::Color32::from_rgb(r, g, b)
-}
-
 fn search(conns: &[ConnectionGene], nodes: &[NodeGene], nodes_until_output: usize) -> Option<usize> {
     for node in nodes {
-        if let NodeGeneType::Ouptut = node.node_type() {
+        if let NodeGeneType::Output = node.node_type() {
             return Some(nodes_until_output);
         }
         let next_nodes = get_next_nodes(conns, nodes, node);
