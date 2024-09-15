@@ -286,10 +286,10 @@ impl Species {
             "Endo", "Exo", "Meso", "Ecto", "Tropho", "Morpho", "Phylo", "Onto", "Ethno", "Archaeo"
         ];
         let suffixes = vec![
-            " neuron", " synapse", " cortex", " dendrite", " axon", " soma", " ganglion", " plexus",
+            "neuron", " synapse", " cortex", " dendrite", " axon", " soma", " ganglion", "plexus",
             " nucleus", " cerebrum", " thalamus", " amygdala", " hippocampus", " cerebellum",
             " neurite", " astrocyte", " oligodendrocyte", " microglia", " myelin", " neurotransmitter",
-            " receptor", " ion", " channel", " potential", " synapsis", " neuroplasticity", " cognition",
+            " receptor", "ion", " channel", " potential", " synapsis", " neuroplasticity", " cognition",
             " memory", " learning", " perception", " sensation", " motor", " reflex", " instinct",
             " behavior", " emotion", " consciousness", " subcortex", " neocortex", " brainstem",
             " hypothalamus", " pituitary", " corpus callosum", " gyrus", " sulcus", " fissure",
