@@ -40,6 +40,23 @@ impl eframe::App for Networks {
             
             let cell_width = w / cols as f32;
             let cell_height = h / rows as f32;
+
+            for col in 0..cols + 1 {
+                let y = cell_height * col as f32;
+
+                painter.line_segment(
+                    [(0., y).into(), (w, y).into()],
+                    (0.2, Color32::GRAY),
+                );
+            }
+            for row in 0..rows + 1 {
+                let x = cell_width * row as f32;
+
+                painter.line_segment(
+                    [(x, 0.).into(), (x, h).into()],
+                    (0.2, Color32::GRAY),
+                );
+            }
             
             let mut coordinates = Vec::new();
             for row in 0..rows {
