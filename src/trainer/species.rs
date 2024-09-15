@@ -241,8 +241,8 @@ impl Species {
 
     /// Get the average score that the networks performed
     /// during the last fitness test
-    pub fn previous_aveage_score(&self) -> f32 {
-        self.previous_aveage_score
+    pub fn previous_average_score(&self) -> f32 {
+        self.previous_average_score
     }
 
     fn bottom_n_with_indices(numbers: &Vec<f32>, n: usize) -> Vec<usize> {
