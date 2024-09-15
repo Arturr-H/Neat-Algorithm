@@ -81,7 +81,7 @@ impl Species {
             let bottom_net = &mut self.networks[bottom_network_idx];
             bottom_net.mutate();
         }
-        
+
     }
 
     /// Crossover two parents and insert offspring
@@ -277,26 +277,39 @@ impl Species {
             "Poly", "Macro", "Micro", "Crypto", "Pseudo", "Proto", "Meta", "Para", "Syn", "Endo", 
             "Exo", "Iso", "Hetero", "Homo", "Mono", "Bi", "Tri", "Tetra", "Penta", "Hexa", "Octo", 
             "Deca", "Dodeca", "Iso", "Allo", "Xeno", "Cyber", "Quantum", "Nano", "Pico", "Femto", 
-            "Atto", "Zepto", "Yocto"
+            "Atto", "Zepto", "Yocto",
+
+            "Neuro", "Psycho", "Cogni", "Bio", "Electro", "Chemo", "Thermo", "Chrono", "Tele", "Geo",
+            "Hydro", "Aero", "Cosmo", "Astro", "Techno", "Socio", "Eco", "Physio", "Patho", "Immuno",
+            "Pharma", "Geno", "Proteo", "Glyco", "Lipo", "Onco", "Cardio", "Nephro", "Gastro", "Hepato",
+            "Dermato", "Ophthalmo", "Oto", "Rhino", "Pneumo", "Hema", "Angio", "Myo", "Osteo", "Arthro",
+            "Endo", "Exo", "Meso", "Ecto", "Tropho", "Morpho", "Phylo", "Onto", "Ethno", "Archaeo"
         ];
         let suffixes = vec![
-            "neuron", "synapse", "cortex", "dendrite", "axon", "soma", "ganglion", "plexus",
-            "nucleus", "cerebrum", "thalamus", "amygdala", "hippocampus", "cerebellum",
-            "neurite", "astrocyte", "oligodendrocyte", "microglia", "myelin", "neurotransmitter",
-            "receptor", "ion", "channel", "potential", "synapsis", "neuroplasticity", "cognition",
-            "memory", "learning", "perception", "sensation", "motor", "reflex", "instinct",
-            "behavior", "emotion", "consciousness", "subcortex", "neocortex", "brainstem",
-            "hypothalamus", "pituitary", "corpus callosum", "gyrus", "sulcus", "fissure",
-            "lobe", "hemisphere", "ventricle", "meninges", "cerebrospinal", "glial", "neural",
-            "synaptic", "axonal", "dendritic", "somatic", "myelinated", "unmyelinated", "efferent",
-            "afferent", "interneuron", "projection", "sensory", "motor", "association", "plasticity",
-            "potentiation", "depression", "habituation", "sensitization", "conditioning"
+            " neuron", " synapse", " cortex", " dendrite", " axon", " soma", " ganglion", " plexus",
+            " nucleus", " cerebrum", " thalamus", " amygdala", " hippocampus", " cerebellum",
+            " neurite", " astrocyte", " oligodendrocyte", " microglia", " myelin", " neurotransmitter",
+            " receptor", " ion", " channel", " potential", " synapsis", " neuroplasticity", " cognition",
+            " memory", " learning", " perception", " sensation", " motor", " reflex", " instinct",
+            " behavior", " emotion", " consciousness", " subcortex", " neocortex", " brainstem",
+            " hypothalamus", " pituitary", " corpus callosum", " gyrus", " sulcus", " fissure",
+            " lobe", " hemisphere", " ventricle", " meninges", " cerebrospinal", " glial", " neural",
+            " synaptic", " axonal", " dendritic", " somatic", " myelinated", " unmyelinated", " efferent",
+            " afferent", " interneuron", " projection", " sensory", " motor", " association", " plasticity",
+            " potentiation", " depression", " habituation", " sensitization", " conditioning",
+
+            "pathy", "osis", "itis", "oma", "ase", "lysis", "genesis", "poiesis", "stasis", "tropism",
+            "taxis", "kinesis", "plasm", "blast", "cyte", "phage", "phil", "phobe", "troph", "stat",
+            "gram", "graph", "scope", "meter", "logy", "ology", "onomy", "ics", "ism", "ist",
+            "oid", "form", "morph", "genic", "genic", "lytic", "penic", "tropic", "philic", "phobic",
+            "tonic", "static", "dynamic", "kinetic", "ergic", "phoretic", "ferrous", "phorous", "valent",
+            "ferous", "vorous", "colous", "parous", "gamous", "type", "some", "ploid", "zoa", "pod"
         ];
 
         let mut rng = thread_rng();
         let prefix = prefixes[rng.gen_range(0..prefixes.len())];
         let suffix = suffixes[rng.gen_range(0..suffixes.len())];
-        (prefix.to_string() + " " + suffix).to_string()
+        (prefix.to_string() + suffix).to_string()
     }
 
 
