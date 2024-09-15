@@ -29,20 +29,25 @@ pub struct NodeGene {
     /// Indexes of connections where node_out is the 
     /// `id` field in this struct.
     incoming_connection_indexes: Vec<usize>,
+
+    /// Debug visualization. X is a value between 0 and 1
+    x: f32
 }
 
 impl NodeGene {
-    pub fn new(index: usize, node_type: NodeGeneType) -> Self {
+    pub fn new(index: usize, node_type: NodeGeneType, x: f32) -> Self {
         Self {
             id: index,
             bias: 0.1,
             node_type,
             activation: 0.,
             incoming_connection_indexes: Vec::new(),
+            x
         }
     }
 
     // Getters
+    pub fn x(&self) -> f32 { self.x }
     pub fn id(&self) -> usize { self.id }
     pub fn bias(&self) -> f32 { self.bias }
     pub fn node_type(&self) -> NodeGeneType { self.node_type }
