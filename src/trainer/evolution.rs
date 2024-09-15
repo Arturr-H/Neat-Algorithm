@@ -120,11 +120,11 @@ impl EvolutionBuilder {
         let activations = NetworkActivations::new(hidden_activation, output_activation);
         
         // Create species
-        let mut species: Vec<Species> = Vec::with_capacity(batch_size);
+        let mut species: Vec<Species> = Vec::with_capacity(AMOUNT_OF_INITIAL_SPECIES);
         let mut global_occupied_connections = Arc::new(Mutex::new(HashMap::new()));
         let global_innovation_number = Arc::new(Mutex::new(0));
 
-        for i in 0..batch_size {
+        for i in 0..AMOUNT_OF_INITIAL_SPECIES {
             let representative = NeatNetwork::new(
                 input_nodes,
                 output_nodes,

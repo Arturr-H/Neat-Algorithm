@@ -218,6 +218,7 @@ impl NeatNetwork {
             cumulative += probability;
             if random_number < cumulative {
                 (func)(self);
+                //debug
                 break;
             }
         }
@@ -229,6 +230,7 @@ impl NeatNetwork {
         let length = self.connection_genes.len();
         let gene = &mut self.connection_genes[rng.gen_range(0..length)];
         gene.mutate_weight();
+        println!("Mutated: {:?}, mutation: mutate_random_gene_weight", gene);
     }
 
     fn mutate_toggle_random_gene(&mut self) -> () {
@@ -237,9 +239,11 @@ impl NeatNetwork {
         let length = self.connection_genes.len();
         let gene = &mut self.connection_genes[rng.gen_range(0..length)];
         gene.set_enabled(rng.gen_bool(0.5));
+        println!("Mutated: {:?}, mutation: mutate_toggle_random_gene", gene);
     }
 
     fn mutate_split_connection(&mut self) -> () {
+
         if self.get_genes().len() < 1 { return; };
         let mut rng = thread_rng();
         let current_innovation = self.get_global_innovation();
@@ -299,6 +303,8 @@ impl NeatNetwork {
         };
 
         self.node_gene_index += 1;
+
+
     }
     
     /// Create a random connection
