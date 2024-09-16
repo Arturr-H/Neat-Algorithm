@@ -1,4 +1,4 @@
-use std::{collections::{HashMap, HashSet}, fmt::Debug, hash::Hash, sync::{Arc, Mutex}};
+use std::{collections::{HashMap, HashSet}, fmt::Debug, hash::Hash, iter, sync::{Arc, Mutex}};
 use rand::{rngs::ThreadRng, seq::SliceRandom, thread_rng, Rng};
 use super::{activation::NetworkActivations, connection_gene::ConnectionGene, node_gene::{NodeGene, NodeGeneType}};
 
@@ -139,7 +139,7 @@ impl NeatNetwork {
             highest_local_innovation,
             activations,
             fitness: 0.,
-            species_index
+            species_index,
         }
     }
 
@@ -200,7 +200,7 @@ impl NeatNetwork {
             highest_local_innovation,
             activations,
             fitness: 0.,
-            species_index
+            species_index,
         }
     }
 
@@ -221,7 +221,7 @@ impl NeatNetwork {
             /* Mutate nothing */
             (20, |_| {}),
         ];
-        
+
         let total: i32 = probabilities.iter().map(|e| e.0).sum();
         let random_number = rng.gen_range(0..total);
         let mut cumulative = 0;
@@ -314,43 +314,47 @@ impl NeatNetwork {
     }
 
     /// Create a random connection
-    /// TODO
     fn mutate_create_connection(&mut self) -> () {
-        // let mut rng = thread_rng();
-        // let current_innovation = self.get_global_innovation();
+        let mut rng = thread_rng();
+        let current_innovation = self.get_global_innovation();
 
-        // let topology_sorted: HashMap<usize, usize> = self.topological_sort()
-        //     .unwrap()
-        //     .iter()
-        //     .enumerate()
-        //     .map(|(pos, &node)| (node, pos))
-        //     .collect();
+        let topology_sorted = self.topological_sort().unwrap();
+        let mut node_from_idx = rng.gen_range(0..topology_sorted.len() - 1);
+        let mut node_to_idx = rng.gen_range(node_from_idx + 1..topology_sorted.len());
+        let mut attempts = 0;
 
-        // let mut possible_connections: Vec<(usize, usize)> = Vec::new();
-        // for src in 0..self.node_gene_index {
-        //     for dst in 0..self.node_gene_index {
-        //         if topology_sorted[&src] < topology_sorted[&dst] && !self.local_occupied_connections.contains(&(src, dst)) {
-        //             possible_connections.push((src, dst));
-        //         }
-        //     }
-        // }
+        // We don't want to connect a weight FROM an output node.
+        while self.is_output(topology_sorted[node_from_idx]) {
+            if attempts > 10 { return };
+            node_from_idx = rng.gen_range(0..topology_sorted.len() - 1);
+            attempts += 1;
+        }
 
-        // if let Some(&(src, dst)) = possible_connections.choose(&mut rng) {
-        //     let (connection, should_increment) = Self::create_connection(
-        //         src, dst,
-        //         rng.gen_range(0.05..0.2),
-        //         self.global_occupied_connections.clone(),
-        //         &mut self.local_occupied_connections,
-        //         &mut self.highest_local_innovation,
-        //         current_innovation + 1,
-        //     );
-    
-        //     // Increase innovation to match the previous self.get_global_innovation() + 1
-        //     if should_increment { self.increment_global_innovation(); };
-        //     if let Some(conn) = connection { self.connection_genes.push(conn); };
-        // } else {
-        //     // No valid connection can be made
-        // }
+        // We don't want to connect a TO an input node.
+        while self.is_input(topology_sorted[node_to_idx]) {
+            if attempts > 20 { return };
+            node_to_idx = rng.gen_range(node_from_idx + 1..topology_sorted.len());
+            attempts += 1;
+        }
+
+        let node_from = topology_sorted[node_from_idx];
+        let node_to = topology_sorted[node_to_idx];
+
+        // We don't want to have connection 5-3 and create 3-5
+        if self.local_occupied_connections.get(&(node_to, node_from)).is_some() { return }
+
+        let (connection, should_increment) = Self::create_connection(
+            node_from, node_to,
+            rng.gen_range(0.05..0.2),
+            self.global_occupied_connections.clone(),
+            &mut self.local_occupied_connections,
+            &mut self.highest_local_innovation,
+            current_innovation + 1,
+        );
+
+        // Increase innovation to match the previous self.get_global_innovation() + 1
+        if should_increment { self.increment_global_innovation(); };
+        if let Some(conn) = connection { self.connection_genes.push(conn); };
     }
 
     /// Tries to create a new connection. If the connection already
@@ -385,24 +389,33 @@ impl NeatNetwork {
                     // push any connections because they already exist
                     (None, false)
                 }else {
-                    let innovation = *inherited_innovation;
-                    if innovation > *highest_local_innovation_number {
-                        *highest_local_innovation_number = innovation;
+                    /* If we don't find a cycle */
+                    if !Self::has_cycle(local_occupied_connections.iter().chain(iter::once(&(node_in, node_out)))) {
+                        let innovation = *inherited_innovation;
+                        if innovation > *highest_local_innovation_number {
+                            *highest_local_innovation_number = innovation;
+                        }
+                        local_occupied_connections.insert((node_in, node_out));
+                        (Some(ConnectionGene::new(node_in, node_out, weight, innovation)), false)
+                    }else {
+                        (None, true)
                     }
-                    local_occupied_connections.insert((node_in, node_out));
-                    (Some(ConnectionGene::new(node_in, node_out, weight, innovation)), false)
                 }
             },
             None => {
-                // If it doesn't exist in global connections, it won't exist
-                // in our local occupied connections.
-                // Returns with true because we've incremented
-                global_occupied_connections.insert((node_in, node_out), innovation_number);
-                local_occupied_connections.insert((node_in, node_out));
-                if innovation_number > *highest_local_innovation_number {
-                    *highest_local_innovation_number = innovation_number;
+                if !Self::has_cycle(local_occupied_connections.iter().chain(iter::once(&(node_in, node_out)))) {
+                    // If it doesn't exist in global connections, it won't exist
+                    // in our local occupied connections.
+                    // Returns with true because we've incremented
+                    global_occupied_connections.insert((node_in, node_out), innovation_number);
+                    local_occupied_connections.insert((node_in, node_out));
+                    if innovation_number > *highest_local_innovation_number {
+                        *highest_local_innovation_number = innovation_number;
+                    }
+                    (Some(ConnectionGene::new(node_in, node_out, weight, innovation_number)), true)
+                }else {
+                    (None, false)
                 }
-                (Some(ConnectionGene::new(node_in, node_out, weight, innovation_number)), true)
             }
         }
     }
@@ -498,6 +511,52 @@ impl NeatNetwork {
         }
     }
 
+    fn has_cycle<'a, I>(connections: I) -> bool 
+    where I: Iterator<Item = &'a (usize, usize)> {
+        let mut adj_list: HashMap<usize, Vec<usize>> = HashMap::new();
+        for &(from, to) in connections {
+            adj_list.entry(from).or_insert(vec![]).push(to);
+        }
+
+        let mut visited: HashSet<usize> = HashSet::new();
+        let mut rec_stack: HashSet<usize> = HashSet::new();
+
+        fn dfs(
+            node: usize,
+            adj_list: &HashMap<usize, Vec<usize>>,
+            visited: &mut HashSet<usize>,
+            rec_stack: &mut HashSet<usize>,
+        ) -> bool {
+            visited.insert(node);
+            rec_stack.insert(node);
+
+            if let Some(neighbors) = adj_list.get(&node) {
+                for &neighbor in neighbors {
+                    if !visited.contains(&neighbor) {
+                        if dfs(neighbor, adj_list, visited, rec_stack) {
+                            return true;
+                        }
+                    } else if rec_stack.contains(&neighbor) {
+                        return true;
+                    }
+                }
+            }
+
+            rec_stack.remove(&node);
+            false
+        }
+
+        for &node in adj_list.keys() {
+            if !visited.contains(&node) {
+                if dfs(node, &adj_list, &mut visited, &mut rec_stack) {
+                    return true;
+                }
+            }
+        }
+
+        false
+    }
+
     /// Increment global innovation number
     pub fn increment_global_innovation(&self) -> usize {
         let inno = &mut *self.global_innovation.lock().unwrap();
@@ -512,9 +571,19 @@ impl NeatNetwork {
         // ? If we count node genes as historical markers change this
         self.highest_local_innovation
     }
-
     pub fn get_genes(&self) -> &Vec<ConnectionGene> {
         &self.connection_genes
+    }
+
+    /// Returns true if the `index` is between
+    /// self.input and self.output
+    pub fn is_output(&self, index: usize) -> bool {
+        index > self.input_size - 1 && index <= (self.input_size + self.output_size - 1)
+    }
+    /// Returns true if the `index` is between
+    /// 0 and self.input
+    pub fn is_input(&self, index: usize) -> bool {
+        index < self.input_size
     }
 
     // Getters
