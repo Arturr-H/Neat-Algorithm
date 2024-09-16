@@ -181,7 +181,7 @@ impl Evolution {
             species.generate_fitness(self.fitness_function);
 
             // Cross-over
-            species.crossover(self.fitness_function);
+            // species.crossover(self.fitness_function);
 
             // Mutate
             species.compute_generation();
