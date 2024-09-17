@@ -1,8 +1,9 @@
 use std::{collections::{HashMap, HashSet}, fmt::Debug, hash::Hash, iter, sync::{Arc, Mutex}};
 use rand::{rngs::ThreadRng, seq::SliceRandom, thread_rng, Rng};
+use serde_derive::{Serialize, Deserialize};
 use super::{activation::NetworkActivations, connection_gene::ConnectionGene, node_gene::{NodeGene, NodeGeneType}};
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct NeatNetwork {
     /// The amount of neurons to feed in
     input_size: usize,
@@ -27,10 +28,12 @@ pub struct NeatNetwork {
     node_gene_index: usize,
 
     /// Reference to global innovation number
+    #[serde(skip)]
     global_innovation: Arc<Mutex<usize>>,
 
     /// An arc pointer pointing to the occupied connections
     /// which are stored in the `Evolution` struct. 
+    #[serde(skip)]
     global_occupied_connections: Arc<Mutex<HashMap<(usize, usize), usize>>>,
 
     /// Only for checking if we already have a connection.
@@ -99,7 +102,7 @@ impl NeatNetwork {
             for output_idx in input..(input + output) {
                 let (connection, _) = Self::create_connection(
                     input_idx, output_idx,
-                    rng.gen_range(0.05..0.2),
+                    rng.gen_range(0.0..1.0),
                     global_occupied_connections.clone(),
                     &mut local_occupied_connections,
                     &mut highest_local_innovation,
@@ -152,13 +155,19 @@ impl NeatNetwork {
         let mut local_occupied_connections = HashSet::new();
         let mut highest_node_index = 0;
         let mut incoming: HashMap<usize, Vec<usize>> = HashMap::new();
-
+        let mut max_incoming = 0;
+        
         for connection in &connection_genes {
             let node_in = connection.node_in();
             let node_out = connection.node_out();
 
             match incoming.get_mut(&node_out) {
-                Some(e) => { e.push(node_in); },
+                Some(e) => {
+                    e.push(node_in);
+                    if e.len() > max_incoming {
+                        max_incoming = e.len();
+                    }
+                },
                 None => { incoming.insert(node_out, vec![node_in]); }
             };
 
@@ -191,9 +200,9 @@ impl NeatNetwork {
             match incoming.get(&i) {
                 Some(indexes) => {
                     node_gene.set_incoming_indexes(indexes.clone());
+                    node_gene.set_x(indexes.len() as f32 / max_incoming as f32 * 0.8 + 0.1);
                 },
-                None => {
-                }
+                None => {}
             };
 
             node_genes.push(node_gene);
@@ -219,7 +228,7 @@ impl NeatNetwork {
         let mut rng = thread_rng();
         let probabilities: Vec<(i32, fn(&mut NeatNetwork) -> ())> = vec![
             /* Randomly select one gene for mutation */
-            (50, Self::mutate_random_gene_weight),
+            (100, Self::mutate_random_gene_weight),
             
             /* Split connection or create new */
             (5, Self::mutate_split_connection),
@@ -355,7 +364,7 @@ impl NeatNetwork {
 
         let (connection, should_increment) = Self::create_connection(
             node_from, node_to,
-            rng.gen_range(0.05..0.2),
+            rng.gen_range(0.0..1.0),
             self.global_occupied_connections.clone(),
             &mut self.local_occupied_connections,
             &mut self.highest_local_innovation,
@@ -568,6 +577,42 @@ impl NeatNetwork {
         }
 
         false
+    }
+
+    /// Save network
+    pub fn save(&self, path: &str) -> () {
+        match bincode::serialize(self) {
+            Ok(e) => {
+                match std::fs::write(path, e) {
+                    Ok(e) => (),
+                    Err(e) => {
+                        println!("Cant write to {path}");
+                        println!("{e:?}");
+                    }
+                };
+            },
+            Err(e) => {
+                println!("Cant serialize");
+                println!("{e:?}");
+            }
+        }
+    }
+
+    /// Retrieve from save file
+    pub fn retrieve(path: &str) -> Self {
+        match std::fs::read(path) {
+            Ok(bytes) => match bincode::deserialize::<Self>(&bytes) {
+                Ok(contents) => contents,
+                Err(e) => {
+                    println!("Error deserializing {e:?}");
+                    panic!("NOO");
+                }
+            },
+            Err(e) => {
+                println!("Error reading {e:?}");
+                panic!("NOO");
+            }
+        }
     }
 
     /// Increment global innovation number
