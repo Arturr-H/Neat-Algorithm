@@ -1,7 +1,8 @@
 use rand::{thread_rng, Rng};
+use serde_derive::{Serialize, Deserialize};
 
 /// A connection between two `NodeGenes`
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ConnectionGene {
     /// The index / ID of some node
     node_in: usize,

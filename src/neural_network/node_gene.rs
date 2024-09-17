@@ -1,13 +1,14 @@
+use serde_derive::{Serialize, Deserialize};
+
 /// Input nodes are the ones that recieve data first, 
 /// then nodes will propagate data forward until it
 /// may reach an output node
-
-#[derive(PartialEq, Eq, Clone, Copy)]
+#[derive(PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
 pub enum NodeGeneType {
     Input, Output, Regular
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct NodeGene {
     /// The ID of this node gene, also the index
     /// of the array which this node is located in
@@ -57,6 +58,7 @@ impl NodeGene {
 
     // Setters
     pub fn set_activation(&mut self, to: f32) -> () { self.activation = to; }
+    pub fn set_x(&mut self, to: f32) -> () { self.x = to; }
 
     /// Appends a new incoming connection gene to the list
     pub fn register_new_incoming(&mut self, index: usize) -> () {

@@ -1,12 +1,13 @@
 use std::default;
+use serde_derive::{Serialize, Deserialize};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct NetworkActivations {
     pub hidden: Activation,
     pub output: Activation
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 #[repr(u8)]
 pub enum Activation {
     Relu,
