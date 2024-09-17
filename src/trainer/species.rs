@@ -2,12 +2,6 @@ use std::{collections::HashMap, sync::{Arc, Mutex}};
 use rand::{thread_rng, Rng};
 use crate::neural_network::{connection_gene::ConnectionGene, network::{self, NeatNetwork}};
 
-const SPEICES_NETWORK_SIZE: usize = 10;
-
-/// How many networks we eliminate after 
-/// each evaluation (worst performing)
-const SPEICES_REMOVAL_COUNT: usize = 5;
-
 pub struct Species {
     /// The representative of a species is a network just like the other
     /// networks in the species, but when we compare distance between
@@ -36,7 +30,7 @@ impl Species {
         size: usize
     ) -> Self {
         assert!(size > 0, "Size must be at least 1 to fit representative");
-        let mut networks: Vec<NeatNetwork> = Vec::with_capacity(SPEICES_NETWORK_SIZE);
+        let mut networks: Vec<NeatNetwork> = Vec::with_capacity(size);
         
         networks.push(representative.clone());
         for i in 0..size - 1 {
@@ -120,8 +114,10 @@ impl Species {
 
         // TODO I dont know if we should be replacing the worst with offspring but hey
         let mut offspring = self.crossover_networks(networks[0].0, networks[1].0, *networks[0].1, *networks[1].1);
-        offspring.evaluate_fitness(fitness_function);
-        self.networks[worst_performing.0] = offspring;
+        if !NeatNetwork::has_cycle(offspring.local_occupied_connections().iter()) {
+            offspring.evaluate_fitness(fitness_function);
+            self.networks[worst_performing.0] = offspring;
+        }
     }
 
     /// Get the offspring of two networks
@@ -273,14 +269,13 @@ impl Species {
     fn generate_name() -> String {
         let prefixes = vec![
             "Quantum", "Sigma", "Big", "Fat", "Ugly", "Hawk", "Fentanyl overdosing",
-            "Quandale", "Strong", "Obese", "Plus sized", "Retard", "Drug addicted",
+            "Quandale", "Strong", "Obese", "Plus sized", "Drug addicted",
             "Child abusing", "Nerdy", "Holy", "Gay", "Fat ass", "Bitch ass", "Dumb",
             "Cute", "Petite", "Optimum", "Street"
         ];
         let suffixes = vec![
-            "machine", "motor", "engine", "brain", "tuah", "ass", "combustion engine",
-            "grease ball", "gambling addict", "Aaron", "Artur", "Hjalmar", "Peter", "swiftie",
-            "shitter", "dumpster",
+            "machine", "motor", "engine", "brain", "tuah", "ass", "combustion engine", "shitter", "dumpster",
+            "iron ingot", "AI", "network", "genome",
         ];
 
         let mut rng = thread_rng();
