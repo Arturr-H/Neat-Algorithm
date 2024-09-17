@@ -1,3 +1,4 @@
+use core::f32;
 use std::{collections::{HashMap, HashSet}, hash::Hash, sync::{Arc, Mutex}};
 use rand::{thread_rng, Rng};
 
@@ -51,6 +52,7 @@ pub struct Evolution {
     global_innovation_number: Arc<Mutex<usize>>,
     stop_condition: StopCondition,
     generation: usize,
+    species_size: usize,
 
     /// To check if we've already got a connection
     /// between two nodes. NEEDS to be (min, max),
@@ -159,7 +161,8 @@ impl EvolutionBuilder {
             global_occupied_connections,
             activations,
             stop_condition: self.stop_condition.clone(),
-            generation: 0
+            generation: 0,
+            species_size
         }
     }
 }
@@ -172,24 +175,65 @@ impl Evolution {
 
     /// Runs the networks through a generation of mutation and selection
     pub fn generation(&mut self) -> () {
-        for species in self.species.iter_mut() {
+        self.generation += 1;
 
+        let mut worst_performing = (f32::MAX, 0);
+        let mut best_performing = (f32::MIN, 0, 0);
+        let mut species_index = 0;
+        
+        for species_index in 0..self.species.len() {
             // Store fitness in each network
-            species.generate_fitness(self.fitness_function);
-
-            let fitness = species.previous_average_score();
+            self.species[species_index].generate_fitness(self.fitness_function);
+            
+            // Stop condition
+            let fitness = self.species[species_index].previous_average_score();
             if self.stop_condition.should_stop(fitness, self.generation) {
                 println!("STOP STOP STOP!");
-                break;
+            }
+
+            // Replace worst performing
+            self.find_least_fit(&mut worst_performing, fitness, species_index);
+            
+            // Create new species from best network
+            for (index, network) in self.species[species_index].networks().iter().enumerate() {
+                let fitness = network.fitness();
+                if fitness > best_performing.0 {
+                    best_performing = (fitness, index, species_index);
+                }
             }
 
             // Cross-over
-            species.crossover(self.fitness_function);
+            self.species[species_index].crossover(self.fitness_function);
 
             // Mutate
-            species.compute_generation();
+            self.species[species_index].compute_generation();
         }
+
+        self.replace_least_fit(worst_performing, best_performing);
     }
+
+    fn find_least_fit(&mut self, worst_performing: &mut (f32, usize), previous_average: f32, species_index: usize) -> () {
+        if self.generation % 10 != 0 { return };
+        
+        if previous_average < worst_performing.0 {
+            *worst_performing = (previous_average, species_index);
+        }   
+
+    }
+
+    fn replace_least_fit(&mut self, worst_species: (f32, usize), best_network: (f32, usize, usize)) -> () {
+        if self.generation % 10 != 0 { return };
+        println!("Removing least fit with fitness {}", worst_species.0);
+        let best_network = &self.species()[best_network.2].networks()[best_network.1];
+        self.species[worst_species.1] = Species::new(
+            self.global_innovation_number.clone(),
+            self.global_occupied_connections.clone(),
+            best_network.clone(),
+            self.species_size,
+        );
+    }
+
+    
 
     /// Returns a reference to all species
     pub fn species(&self) -> &Vec<Species> {

@@ -77,7 +77,6 @@ impl Species {
     }
 
     /// Crossover two parents and insert offspring
-    /// TODO
     pub fn crossover(&mut self, fitness_function: fn(&mut NeatNetwork) -> f32) -> () {
         assert!(self.networks.len() > 1);
         let mut rng = thread_rng();
