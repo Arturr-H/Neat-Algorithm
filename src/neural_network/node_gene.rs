@@ -63,8 +63,20 @@ impl NodeGene {
         assert!(!self.incoming_connection_indexes.contains(&index));
         self.incoming_connection_indexes.push(index);
     }
+    pub fn set_incoming_indexes(&mut self, to: Vec<usize>) -> () {
+        self.incoming_connection_indexes = to;
+    }
     pub fn remove_incoming(&mut self, index: usize) -> () {
         self.incoming_connection_indexes.remove(index);
+    }
+
+    /// Display all info about this gene
+    pub fn verbose_debug(&self) -> String {
+        format!(
+            "Incoming: {:?}, Bias: {}, Activation: {}, Id: {}, Type: {:?}",
+            self.incoming_connection_indexes, self.bias,
+            self.activation, self.id, self.node_type
+        )
     }
 }
 
