@@ -239,4 +239,8 @@ impl Evolution {
     pub fn species(&self) -> &Vec<Species> {
         &self.species
     }
+
+    pub fn get_generation(&self) -> usize {
+        self.generation
+    }
 }

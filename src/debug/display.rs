@@ -1,7 +1,7 @@
 /* Imports */
 use core::f32;
 use std::collections::HashMap;
-use eframe::{egui::{self, pos2, Align2, Color32, FontId, Key, Painter, Pos2, Rect}, epaint::PathStroke};
+use eframe::{egui::{self, pos2, Align2, Color32, FontId, Key, Painter, Pos2, Rect}, emath::Rot2, epaint::PathStroke};
 use crate::{neural_network::{connection_gene::ConnectionGene, network::NeatNetwork, node_gene::{NodeGene, NodeGeneType}}, trainer::evolution::Evolution};
 
 /* Constants */
@@ -19,6 +19,7 @@ struct DrawContext {
 
     /// What we should save a network as
     save_name: Option<String>,
+    speed_gen: bool,
 }
 pub fn start_debug_display(evolution: Evolution) -> () {
     let options = eframe::NativeOptions::default();
@@ -31,7 +32,8 @@ pub fn start_debug_display(evolution: Evolution) -> () {
             tab_height: 50.,
             focusing: None,
             info: None,
-            save_name: None
+            save_name: None,
+            speed_gen: false,
         }))),
     ).unwrap();
 }
@@ -45,6 +47,7 @@ impl eframe::App for DrawContext {
             let mut reset = false;
             draw_top_tab(self, ctx, _frame, painter);
             draw_bottom_tab(self, ctx, _frame, painter);
+            
 
             ctx.input(|i| {
                 if !i.raw.events.is_empty() {
@@ -57,6 +60,11 @@ impl eframe::App for DrawContext {
                     }
                 }
             });
+
+            if self.speed_gen {
+                self.evolution.generation();
+                ctx.request_repaint();
+            }
 
             if ctx.input(|i| i.key_pressed(Key::Space)) {
                 self.evolution.generation();
@@ -73,12 +81,38 @@ impl eframe::App for DrawContext {
                 if self.save_name.is_none() && self.focusing.is_some() {
                     self.save_name = Some(String::new());
                 }
+            }else if ctx.input(|i| i.key_released(Key::Q)) {
+                self.speed_gen = !self.speed_gen;
             }
+            
+            
             
             let networks = self.evolution.species()[self.species_index].networks();
             let cols = (networks.len() as f32).sqrt() as usize; // Number of columns
             let rows = (networks.len() + cols - 1) / cols;    // Number of rows
             
+            let (mut min_fitness, mut max_fitness) = (f32::MAX, f32::MIN);
+            
+        
+
+            if ctx.input(|i| i.key_pressed(Key::F)) {
+                let mut best_network = (0, 0); // (species_index, network_index)
+
+                // Find the best network, go through all species and networks
+                for (species_index, species) in self.evolution.species().iter().enumerate() {
+                    for (network_index, network) in species.networks().iter().enumerate() {
+                        let fitness = network.fitness();
+                        if fitness > max_fitness {
+                            max_fitness = fitness;
+                            best_network = (species_index, network_index);
+                        }
+                    }
+                }
+
+                self.species_index = best_network.0;
+                self.focusing = Some(best_network.1);
+            }
+
             let cell_width = w / cols as f32;
             let cell_height = (h - self.tab_height) / rows as f32;
 
@@ -113,7 +147,7 @@ impl eframe::App for DrawContext {
             /* Focus and display one network */
             if let Some(focus_index) = self.focusing {
                 let network = &networks[focus_index];
-                if let Some(info) = draw_network((0., self.tab_height), network, w, h, 60., painter, pos) {
+                if let Some(info) = draw_network(self.focusing, (0., self.tab_height), network, w, h, 60., painter, pos) {
                     self.info = Some(info);
                 }
             }
@@ -145,7 +179,7 @@ impl eframe::App for DrawContext {
                         },
                         0.0, if hovering {Color32::from_rgba_unmultiplied(255, 255, 255, 1)} else {Color32::TRANSPARENT}
                     );
-                    if let Some(info) = draw_network(coordinate, network, cell_width, cell_height, 60., painter, pos) {
+                    if let Some(info) = draw_network(self.focusing, coordinate, network, cell_width, cell_height, 60., painter, pos) {
                         self.info = Some(info);
                     }
                 }
@@ -266,14 +300,14 @@ fn draw_bottom_tab(draw_ctx: &mut DrawContext, ctx: &egui::Context, _frame: &mut
     }else {
         painter.text(
             pos2(tab_h / 2., h - tab_h/2.), Align2::LEFT_CENTER,
-            format!("{:<30} | Fit: {:.3}", species.get_name(), species.previous_average_score()),
+            format!("{:<30} | Fit: {:.4} | Generation: {:<8}", species.get_name(), format!("{:<8}", species.previous_average_score()), draw_ctx.evolution.get_generation()),
             FontId::new(20., egui::FontFamily::Monospace),
             Color32::WHITE
         );
     }
 }
 
-fn draw_arrow(painter: &Painter, p1: (f32, f32), p2: (f32, f32), path_stroke: impl Into<PathStroke> + Copy) -> () {
+fn draw_arrow(is_focusing: Option<usize>, weight: f32, painter: &Painter, p1: (f32, f32), p2: (f32, f32), path_stroke: impl Into<PathStroke> + Copy) -> () {
     let rad = f32::consts::PI / 8.;
     let arrow_length = 10.;
     let dx = p1.0 - p2.0;
@@ -310,6 +344,17 @@ fn draw_arrow(painter: &Painter, p1: (f32, f32), p2: (f32, f32), path_stroke: im
         [pos2(mid_x, mid_y), arrow2_end.into()],
         path_stroke
     );
+
+    if is_focusing.is_some() {
+        painter.text(
+            pos2(mid_x, mid_y + 15.),
+            Align2::CENTER_CENTER,
+            format!("{:.3}", weight),
+            FontId::default(),
+            Color32::WHITE
+        );
+    }
+    
 }
 fn rotate_vector(dx: f32, dy: f32, angle: f32) -> (f32, f32) {
     let cos_theta = angle.cos();
@@ -341,6 +386,7 @@ fn draw_dividers(rows: usize, cols: usize, cell_height: f32, cell_width: f32, w:
 
 /// Returns a node gene if hovering above it
 fn draw_network(
+    is_focusing: Option<usize>,
     coordinate: (f32, f32),
     network: &NeatNetwork,
     cell_width: f32, cell_height: f32,
@@ -429,7 +475,7 @@ fn draw_network(
         };
 
         let path_stroke = (conn.weight().max(0.2), color);
-        draw_arrow(painter, (x1, y1), (x2, y2), path_stroke);
+        draw_arrow(is_focusing, conn.weight(), painter, (x1, y1), (x2, y2), path_stroke);
         painter.line_segment(
             [(x1, y1).into(), (x2, y2).into()],
             path_stroke
