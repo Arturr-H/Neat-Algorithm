@@ -11,18 +11,22 @@ use std::{collections::HashMap, sync::{Arc, Mutex}, time::Duration};
 use debug::display::start_debug_display;
 use neural_network::{activation::{Activation, NetworkActivations}, network::NeatNetwork, node_gene::{NodeGene, NodeGeneType}};
 use block_blast::board::{self, board::Board, board_error::PlacementError, cell::Cell};
-use trainer::evolution::{self, Evolution, EvolutionBuilder};
+use trainer::{evolution::{self, Evolution, EvolutionBuilder}, evolution_config::{Chain, StopCondition, StopConditionType}};
 use trainer::species::Species;
 use rand::Rng;
 
 fn main() -> () {
     let mut _evolution = Evolution::new()
         .batch_size(100)
+        .with_species_size(9)
         .with_input_nodes(2)
         .with_output_nodes(1)
         .with_hidden_activation(Activation::Relu)
         .with_output_activation(Activation::Relu)
-        .with_species_size(6)
+        .with_stop_condition(
+            StopCondition::after_generations(100)
+                .chain(Chain::Or, StopConditionType::FitnessReached(15.99))
+        )
         .set_fitness_function(score_network)
         .build();
 
@@ -42,12 +46,11 @@ pub fn score_network(network: &mut NeatNetwork) -> f32 {
     for &((input1, input2), expected_output) in xor.iter() {
         let output = network.calculate_output(vec![input1, input2])[0];
         let err = (expected_output - output).abs();
-
-        /* 1. - err becasue sigmoid max is = 1 */
-        total_score += (1. - err).max(0.0);
+        let normalized_error = 1.0 / (1.0 + err);
+        total_score += normalized_error;
     }
 
-    total_score
+    total_score*total_score
 }
 
 
