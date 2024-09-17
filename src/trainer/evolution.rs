@@ -2,7 +2,7 @@ use std::{collections::{HashMap, HashSet}, hash::Hash, sync::{Arc, Mutex}};
 use rand::{thread_rng, Rng};
 
 use crate::neural_network::{activation::{Activation, NetworkActivations}, connection_gene::ConnectionGene, network::{self, NeatNetwork}};
-use super::species::Species;
+use super::{evolution_config::StopCondition, species::Species};
 
 /// How many times we mutate the representative before cloning
 /// and creating a distinct species
@@ -34,6 +34,8 @@ pub struct EvolutionBuilder {
     /// eachother each generation)
     species_size: usize,
 
+    stop_condition: StopCondition,
+
     hidden_activation: Activation,
     output_activation: Activation,
 }
@@ -47,6 +49,8 @@ pub struct Evolution {
     fitness_function: fn(&mut NeatNetwork) -> f32,
     activations: NetworkActivations,
     global_innovation_number: Arc<Mutex<usize>>,
+    stop_condition: StopCondition,
+    generation: usize,
 
     /// To check if we've already got a connection
     /// between two nodes. NEEDS to be (min, max),
@@ -70,6 +74,7 @@ impl EvolutionBuilder {
             species_size: DEFAULT_SPECIES_SIZE,
             hidden_activation: Activation::LeakyRelu,
             output_activation: Activation::Sigmoid,
+            stop_condition: StopCondition::default()
         }
     }
 
@@ -91,6 +96,9 @@ impl EvolutionBuilder {
     pub fn with_hidden_activation(&mut self, activation: Activation) -> &mut Self { self.hidden_activation = activation; self }
     /// Set the activation function to be applied to all output nodes
     pub fn with_output_activation(&mut self, activation: Activation) -> &mut Self { self.output_activation = activation; self }
+
+    /// Set the stop condition for evolution
+    pub fn with_stop_condition(&mut self, stop: StopCondition) -> &mut Self { self.stop_condition = stop; self }
 
     /// This function will run the network trough some test that
     /// the network is trained to do. The function will return an
@@ -131,7 +139,6 @@ impl EvolutionBuilder {
                 global_innovation_number.clone(),
                 global_occupied_connections.clone(),
                 activations,
-                i
             );
 
             species.push(Species::new(
@@ -150,7 +157,9 @@ impl EvolutionBuilder {
             fitness_function: self.fitness_function.unwrap(),
             global_innovation_number,
             global_occupied_connections,
-            activations
+            activations,
+            stop_condition: self.stop_condition.clone(),
+            generation: 0
         }
     }
 }
@@ -161,39 +170,25 @@ impl Evolution {
         EvolutionBuilder::new()
     }
 
-    pub fn run(&mut self, evolutions: usize) -> () {
-        for i in 0..evolutions {
-            let (avg_score, best_score) = self.generation();
-            println!("Generation {i} Avg: {:.3} Best: {:.3} Inno: {}", avg_score, best_score, *self.global_innovation_number.lock().unwrap());
-
-            // std::thread::sleep(std::time::Duration::from_millis(200));
-        }
-    }
-
     /// Runs the networks through a generation of mutation and selection
-    pub fn generation(&mut self) -> (f32, f32) {
-        let mut total_average_score = 0.0;
-        let mut best_score = 0.0;
-
+    pub fn generation(&mut self) -> () {
         for species in self.species.iter_mut() {
 
             // Store fitness in each network
             species.generate_fitness(self.fitness_function);
 
+            let fitness = species.previous_average_score();
+            if self.stop_condition.should_stop(fitness, self.generation) {
+                println!("STOP STOP STOP!");
+                break;
+            }
+
             // Cross-over
-            // species.crossover(self.fitness_function);
+            species.crossover(self.fitness_function);
 
             // Mutate
             species.compute_generation();
-
-            let score = species.previous_average_score();
-            total_average_score += score;
-            if score > best_score {
-                best_score = score;
-            }
         }
-
-        (total_average_score / self.species.len() as f32, best_score)
     }
 
     /// Returns a reference to all species
