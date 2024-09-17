@@ -50,9 +50,6 @@ pub struct NeatNetwork {
     /// Stores the previous points which were accumulated during
     /// the latest fitness evaluation test.
     fitness: f32,
-
-    /// The index of the species group this network is in.
-    species_index: usize,
 }
 
 impl NeatNetwork {
@@ -80,7 +77,6 @@ impl NeatNetwork {
         global_innovation: Arc<Mutex<usize>>,
         global_occupied_connections: Arc<Mutex<HashMap<(usize, usize), usize>>>,
         activations: NetworkActivations,
-        species_index: usize
     ) -> Self {
         // Create node genes
         let mut node_genes = Vec::with_capacity(input + output);
@@ -139,7 +135,6 @@ impl NeatNetwork {
             highest_local_innovation,
             activations,
             fitness: 0.,
-            species_index,
         }
     }
 
@@ -152,14 +147,20 @@ impl NeatNetwork {
         global_occupied_connections: Arc<Mutex<HashMap<(usize, usize), usize>>>,
         activations: NetworkActivations,
         connection_genes: Vec<ConnectionGene>,
-        species_index: usize
     ) -> Self {
         let mut highest_local_innovation = 0;
         let mut local_occupied_connections = HashSet::new();
         let mut highest_node_index = 0;
+        let mut incoming: HashMap<usize, Vec<usize>> = HashMap::new();
+
         for connection in &connection_genes {
             let node_in = connection.node_in();
             let node_out = connection.node_out();
+
+            match incoming.get_mut(&node_out) {
+                Some(e) => { e.push(node_in); },
+                None => { incoming.insert(node_out, vec![node_in]); }
+            };
 
             local_occupied_connections.insert((node_in, node_out));
             if connection.innovation_number() > highest_local_innovation {
@@ -181,11 +182,21 @@ impl NeatNetwork {
             };
 
             // TODO NOT 0.5
-            node_genes.push(NodeGene::new(i, node_type, match node_type {
+            let x = match node_type {
                 NodeGeneType::Input => 0.0,
                 NodeGeneType::Regular => 0.5,
                 NodeGeneType::Output => 1.0,
-            }))
+            };
+            let mut node_gene = NodeGene::new(i, node_type, x);
+            match incoming.get(&i) {
+                Some(indexes) => {
+                    node_gene.set_incoming_indexes(indexes.clone());
+                },
+                None => {
+                }
+            };
+
+            node_genes.push(node_gene);
         }
 
         Self {
@@ -200,7 +211,6 @@ impl NeatNetwork {
             highest_local_innovation,
             activations,
             fitness: 0.,
-            species_index,
         }
     }
 
@@ -212,8 +222,8 @@ impl NeatNetwork {
             (50, Self::mutate_random_gene_weight),
             
             /* Split connection or create new */
-            (10, Self::mutate_split_connection),
-            (15, Self::mutate_create_connection),
+            (5, Self::mutate_split_connection),
+            (8, Self::mutate_create_connection),
 
             /* Toggle random connection */
             (10, Self::mutate_toggle_random_gene),
@@ -354,7 +364,10 @@ impl NeatNetwork {
 
         // Increase innovation to match the previous self.get_global_innovation() + 1
         if should_increment { self.increment_global_innovation(); };
-        if let Some(conn) = connection { self.connection_genes.push(conn); };
+        if let Some(conn) = connection {
+            self.connection_genes.push(conn);
+            self.node_genes[node_to].register_new_incoming(self.connection_genes.len() - 1);
+        };
     }
 
     /// Tries to create a new connection. If the connection already
@@ -511,7 +524,7 @@ impl NeatNetwork {
         }
     }
 
-    fn has_cycle<'a, I>(connections: I) -> bool 
+    pub fn has_cycle<'a, I>(connections: I) -> bool 
     where I: Iterator<Item = &'a (usize, usize)> {
         let mut adj_list: HashMap<usize, Vec<usize>> = HashMap::new();
         for &(from, to) in connections {
@@ -589,10 +602,10 @@ impl NeatNetwork {
     // Getters
     pub fn input_size(&self) -> usize { self.input_size }
     pub fn output_size(&self) -> usize { self.output_size }
-    pub fn species_index(&self) -> usize { self.species_index }
     pub fn node_genes(&self) -> &Vec<NodeGene> { &self.node_genes }
     pub fn fitness(&self) -> f32 { self.fitness }
     pub fn activations(&self) -> NetworkActivations { self.activations }
+    pub fn local_occupied_connections(&self) -> &HashSet<(usize, usize)> { &self.local_occupied_connections }
 
     /// Store the fitness of the current network
     pub fn evaluate_fitness(&mut self, fitness_func: fn(&mut Self) -> f32) -> () {
