@@ -11,9 +11,10 @@ pub struct NetworkActivations {
 #[repr(u8)]
 pub enum Activation {
     Relu,
+    Linear,
     LeakyRelu,
     Sigmoid,
-    Softmax
+    Softmax,
 }
 impl Activation {
     pub fn run(&self, inputs: &Vec<f32>, index: usize) -> f32 {
@@ -21,7 +22,8 @@ impl Activation {
             Self::LeakyRelu => leaky_relu(inputs, index),
             Self::Relu => relu(inputs, index),
             Self::Sigmoid => sigmoid(inputs, index),
-            Self::Softmax => softmax(inputs, index)
+            Self::Softmax => softmax(inputs, index),
+            Self::Linear => inputs[index]
         }
     }
 }

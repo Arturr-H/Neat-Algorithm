@@ -68,12 +68,18 @@ impl Species {
         // We won't modify the top 30, that's why we only deal with bottom 70 here
         let bottom_70_amount = (self.networks.len() as f32 * 0.7).round() as usize;
         let bottom_70 = Self::bottom_n_with_indices(&scores, bottom_70_amount);
-
+        let worst_index = bottom_70[0];
+        let top_index = Self::top_n_with_indices(&scores, 1)[0];
         for bottom_network_idx in bottom_70 {
             let bottom_net = &mut self.networks[bottom_network_idx];
             bottom_net.mutate();
         }
 
+        // Chance of cloning one of the best networks to replace one of the worse
+        if thread_rng().gen_bool(0.05) {
+            // Worst
+            self.networks[worst_index] = self.networks[top_index].clone();
+        }
     }
 
     /// Crossover two parents and insert offspring
@@ -95,20 +101,27 @@ impl Species {
 
         let mut networks = Vec::new();
         let mut worst_performing: (usize, f32) = (0, f32::MAX);
-        for i in 0..2 {
-            let mut cumulative = 0.0;
-            let mut random_fitness = rng.gen_range(0.0..summed_fitness);
-            for (network_index, (fitness, net)) in networks_with_fitness.iter().enumerate() {
-                if fitness < &worst_performing.1 {
-                    worst_performing.0 = network_index;
-                    worst_performing.1 = *fitness;
-                }
+        let n1 = &self.networks[rng.gen_range(0..self.networks.len())];
+        let n2 = &self.networks[rng.gen_range(0..self.networks.len())];
+        if summed_fitness > 0. {
+            for i in 0..2 {
+                let mut cumulative = 0.0;
+                let mut random_fitness = rng.gen_range(0.0..summed_fitness);
+                for (network_index, (fitness, net)) in networks_with_fitness.iter().enumerate() {
+                    if fitness < &worst_performing.1 {
+                        worst_performing.0 = network_index;
+                        worst_performing.1 = *fitness;
+                    }
 
-                cumulative += fitness;
-                if random_fitness < cumulative {
-                    networks.push((net, fitness));
+                    cumulative += fitness;
+                    if random_fitness < cumulative {
+                        networks.push((net, fitness));
+                    }
                 }
             }
+        }else {
+            networks.push((&n1, &0.0));
+            networks.push((&n2, &0.0));
         }
 
         // TODO I dont know if we should be replacing the worst with offspring but hey
