@@ -62,7 +62,9 @@ impl eframe::App for DrawContext {
             });
 
             if self.speed_gen {
-                self.evolution.generation();
+                if self.evolution.generation() {
+                    self.speed_gen = false;
+                };
                 ctx.request_repaint();
             }
 
@@ -110,7 +112,7 @@ impl eframe::App for DrawContext {
                 }
 
                 self.species_index = best_network.0;
-                self.focusing = Some(best_network.1);
+                // self.focusing = Some(best_network.1);
             }
 
             let cell_width = w / cols as f32;
@@ -437,7 +439,12 @@ fn draw_network(
 
             node_positions.insert(*node_index, (x, y));
             let col = match node.node_type() {
-                NodeGeneType::Input => Color32::GREEN,
+                NodeGeneType::Input => {
+                    /* black = 0.0, white = 1.0 */
+                    let clamped_activation = node.activation().clamp(0., 1.);
+                    let a = (clamped_activation * 255.) as u8;
+                    Color32::from_rgb(a, a, a)
+                },
                 NodeGeneType::Regular => Color32::WHITE,
                 NodeGeneType::Output => Color32::BLUE,
             };
