@@ -23,10 +23,10 @@ fn main() -> () {
         .with_output_nodes(1)
         .with_hidden_activation(Activation::Relu)
         .with_output_activation(Activation::Relu)
-        .with_stop_condition(
-            StopCondition::after_generations(100)
-                .chain(Chain::Or, StopConditionType::FitnessReached(15.99))
-        )
+        // .with_stop_condition(
+        //     StopCondition::after_generations(100)
+        //         .chain(Chain::Or, StopConditionType::FitnessReached(15.99))
+        // )
         .set_fitness_function(score_network)
         .build();
 
