@@ -1,6 +1,8 @@
 use std::{collections::{HashMap, HashSet}, fmt::Debug, hash::Hash, iter, sync::{Arc, Mutex}};
 use rand::{rngs::ThreadRng, seq::SliceRandom, thread_rng, Rng};
 use serde_derive::{Serialize, Deserialize};
+use crate::utils::Timer;
+
 use super::{activation::NetworkActivations, connection_gene::ConnectionGene, node_gene::{NodeGene, NodeGeneType}};
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -114,7 +116,6 @@ impl NeatNetwork {
                 // weights
                 local_innovation += 1;
                 if let Some(conn) = connection { connection_genes.push(conn); };
-                
                 // Register that we've created a new outgoing weight for the new node
                 node_genes[output_idx].register_new_incoming(connection_genes.len() - 1);
             }
@@ -450,7 +451,10 @@ impl NeatNetwork {
     /// node genes and connections and returns the output layer.
     pub fn calculate_output(&mut self, input: Vec<f32>) -> Vec<f32> {
         assert!(input.len() == self.input_size);
-
+        for node_gene in self.node_genes.iter_mut() {
+            node_gene.set_activation(0.0);
+        }
+        
         // Set activation for input nodes
         for (index, value) in input.iter().enumerate() {
             self.node_genes[index].set_activation(*value);
