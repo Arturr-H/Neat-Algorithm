@@ -4,7 +4,7 @@ use rand::{thread_rng, Rng};
 use rayon::{iter::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator}, slice::ParallelSliceMut};
 
 use crate::neural_network::{activation::{Activation, NetworkActivations}, connection_gene::ConnectionGene, network::{self, NeatNetwork}};
-use super::{config::{mutation::MutationProbablities, network_config::NetworkConfig, stop_condition::StopCondition}, species::Species};
+use super::{config::{mutation::{GenomeMutationProbablities, WeightChangeProbablities}, network_config::NetworkConfig, stop_condition::StopCondition}, species::Species};
 
 /// How many times we mutate the representative before cloning
 /// and creating a distinct species
@@ -41,6 +41,8 @@ pub struct EvolutionBuilder {
 
     hidden_activation: Activation,
     output_activation: Activation,
+
+    par_chunks_size: usize,
 }
 
 pub struct Evolution {
@@ -55,6 +57,7 @@ pub struct Evolution {
     stop_condition: StopCondition,
     generation: usize,
     species_size: usize,
+    par_chunks_size: usize,
 
     /// To check if we've already got a connection
     /// between two nodes. NEEDS to be (min, max),
@@ -79,7 +82,8 @@ impl EvolutionBuilder {
             hidden_activation: Activation::LeakyRelu,
             output_activation: Activation::Sigmoid,
             stop_condition: StopCondition::default(),
-            network_config: NetworkConfig::default()
+            network_config: NetworkConfig::default(),
+            par_chunks_size: 1,
         }
     }
 
@@ -104,8 +108,21 @@ impl EvolutionBuilder {
 
     /// Set the stop condition for evolution
     pub fn with_stop_condition(&mut self, stop: StopCondition) -> &mut Self { self.stop_condition = stop; self }
+
     /// Set the diffrent mutation probabilities for evolution
-    pub fn with_mutation_probabilities(&mut self, prob: MutationProbablities) -> &mut Self { self.network_config.mutation_probabilities = prob; self }
+    pub fn mutation_probabilities(&mut self, prob: GenomeMutationProbablities) -> &mut Self { self.network_config.mutation_probabilities = prob; self }
+    /// Set the diffrent mutation probabilities for evolution
+    pub fn weight_change_probabilities(&mut self, prob: WeightChangeProbablities) -> &mut Self { self.network_config.weight_change_probabilities = prob; self }
+
+    /// How big each chunk will be when multithreading looping
+    /// through all species for running a generation. Default
+    /// is 1. The par chunk size is the amount of species one
+    /// thread will be handling at once. 
+    /// 
+    /// Therefore len(species) / par_chunk_size = "amount of threads"
+    /// not actually but that's how ***theoretically*** many threads
+    /// there will be
+    pub fn par_chunks_size(&mut self, size: usize) -> &mut Self { self.par_chunks_size = size; self }
 
     /// This function will run the network trough some test that
     /// the network is trained to do. The function will return an
@@ -154,7 +171,7 @@ impl EvolutionBuilder {
                 global_innovation_number.clone(),
                 global_occupied_connections.clone(),
                 representative,
-                species_size,
+                species_size
             ));
         }
 
@@ -170,6 +187,7 @@ impl EvolutionBuilder {
             stop_condition: self.stop_condition.clone(),
             generation: 0,
             species_size,
+            par_chunks_size: self.par_chunks_size
         }
     }
 }
@@ -190,7 +208,7 @@ impl Evolution {
         let mut should_stop = Arc::new(Mutex::new(false));
         // let mut handles = Vec::new();
         
-        self.species.par_chunks_mut(10).enumerate().for_each(|(species_index, species_chunk)| {
+        self.species.par_chunks_mut(self.par_chunks_size).enumerate().for_each(|(species_index, species_chunk)| {
             for species in species_chunk {
                 // let handle = thread::spawn(f)
                 // Store fitness in each network
@@ -212,7 +230,7 @@ impl Evolution {
 
                 // Create new species from best network
                 for (index, network) in species.networks().iter().enumerate() {
-                    let fitness = network.fitness();
+                    let fitness = network.average_fitness();
                     let mut best_performing = best_performing.lock().unwrap();
                     if fitness > best_performing.0 {
                         *best_performing = (fitness, index, species_index);
@@ -245,7 +263,9 @@ impl Evolution {
         );
     }
 
-    
+    pub fn average_fitness(&self) -> f32 {
+        self.species.iter().map(|e| e.previous_average_score()).sum::<f32>() / self.species.len() as f32
+    }
 
     /// Returns a reference to all species
     pub fn species(&self) -> &Vec<Species> {

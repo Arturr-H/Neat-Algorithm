@@ -1,5 +1,9 @@
-use rand::{thread_rng, Rng};
+use std::sync::Arc;
+
+use rand::{rngs::ThreadRng, thread_rng, Rng};
 use serde_derive::{Serialize, Deserialize};
+
+use crate::trainer::config::mutation::WeightChangeProbablities;
 
 /// A connection between two `NodeGenes`
 #[derive(Clone, Serialize, Deserialize)]
@@ -37,17 +41,31 @@ impl ConnectionGene {
         self.enabled = enabled
     }
 
-    pub fn mutate_weight(&mut self) -> () {
+    pub fn mutate_weight(&mut self, weight_change_prob: &WeightChangeProbablities) -> () {
         let mut rng = thread_rng();
+        let mut new_weight = self.weight;
+        let WeightChangeProbablities {
+            addition_small, addition_large, multiplication_small,
+            multiplication_large, change_sign } = weight_change_prob;
 
-        match rng.gen_range(0..3) {
-            // Add or subtract to weight
-            0 => self.weight += rng.gen_range(-1.0..1.0),
-            // Multiply weight
-            1 => self.weight *= rng.gen_range(0.5..1.5),
-            // Change sign
-            2 => self.weight *= -1.,
-            _ => unreachable!()
+        let probabilities: Vec<(&usize, fn(&mut f32, ThreadRng))> = vec![
+            (addition_small, |i: &mut f32, mut rng: ThreadRng|       { *i += rng.gen_range(-0.2..0.2) }),
+            (addition_large, |i: &mut f32, mut rng: ThreadRng|       { *i += rng.gen_range(-1.5..1.5) }),
+            (multiplication_small, |i: &mut f32, mut rng: ThreadRng| { *i *= rng.gen_range(0.8..1.2) }),
+            (multiplication_large, |i: &mut f32, mut rng: ThreadRng| { *i *= rng.gen_range(0.3..1.7) }),
+            (change_sign, |i: &mut f32, mut rng: ThreadRng|          { *i *= -1. }),
+        ];
+
+        let total: usize = probabilities.iter().map(|e| e.0).sum();
+        let random_number = rng.gen_range(0..total);
+        let mut cumulative = 0;
+        for (index, &(probability, func)) in probabilities.iter().enumerate() {
+            cumulative += probability;
+            if random_number < cumulative {
+                (func)(&mut self.weight, rng);
+                //debug
+                break;
+            }
         }
     }
 }

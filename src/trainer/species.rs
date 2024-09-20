@@ -27,7 +27,7 @@ impl Species {
         global_innovation_number: Arc<Mutex<usize>>,
         global_occupied_connections: Arc<Mutex<HashMap<(usize, usize), usize>>>,
         representative: NeatNetwork,
-        size: usize
+        size: usize,
     ) -> Self {
         assert!(size > 0, "Size must be at least 1 to fit representative");
         let mut networks: Vec<NeatNetwork> = Vec::with_capacity(size);
@@ -61,7 +61,7 @@ impl Species {
     /// without changes. The 70% of the rest networks are randomly mutated
     /// and THEN placed in the next generation
     pub fn compute_generation(&mut self) -> () {
-        let mut scores: Vec<f32> = self.networks.iter().map(|e| e.fitness()).collect();
+        let mut scores: Vec<f32> = self.networks.iter().map(|e| e.average_fitness()).collect();
         let mut total_score = scores.iter().sum::<f32>();
         self.previous_average_score = total_score / self.networks.len() as f32;
 
@@ -93,7 +93,7 @@ impl Species {
         let networks_with_fitness: Vec<(f32, &NeatNetwork)> = self.networks
             .iter()
             .map(|e| {
-                let fitness = e.fitness();
+                let fitness = e.average_fitness();
                 summed_fitness += fitness;
                 (fitness, e)
             })

@@ -1,9 +1,12 @@
+/* Imports */
 use std::{collections::{HashMap, HashSet}, fmt::Debug, hash::Hash, iter, sync::{Arc, Mutex}};
 use rand::{rngs::ThreadRng, seq::SliceRandom, thread_rng, Rng};
 use serde_derive::{Serialize, Deserialize};
-use crate::{trainer::config::{mutation::MutationProbablities, network_config::NetworkConfig}, utils::Timer};
-
+use crate::{trainer::config::{mutation::GenomeMutationProbablities, network_config::NetworkConfig}, utils::Timer};
 use super::{activation::NetworkActivations, connection_gene::ConnectionGene, node_gene::{NodeGene, NodeGeneType}};
+
+/* Constants */
+pub const AVERAGE_FITNESS_WINDOW_SIZE: usize = 25;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct NeatNetwork {
@@ -54,10 +57,15 @@ pub struct NeatNetwork {
 
     /// Stores the previous points which were accumulated during
     /// the latest fitness evaluation test.
-    fitness: f32,
+    previous_fitness: f32,
+
+    /// Stores the fitnesses from the last 5 fitness tests
+    average_fitness: [f32; AVERAGE_FITNESS_WINDOW_SIZE],
 
     #[serde(skip)]
-    network_config: Arc<NetworkConfig>
+    network_config: Arc<NetworkConfig>,
+
+    topology_sort_cached: Vec<usize>
 }
 
 impl NeatNetwork {
@@ -143,8 +151,12 @@ impl NeatNetwork {
             local_occupied_connections,
             highest_local_innovation,
             activations,
-            fitness: 0.,
-            network_config: network_config.clone()
+            previous_fitness: 0.,
+            average_fitness: [0.; AVERAGE_FITNESS_WINDOW_SIZE],
+            network_config: network_config.clone(),
+
+            // TODO: Should we initialize with sorted or not? I think not
+            topology_sort_cached: Vec::new()
         }
     }
 
@@ -227,15 +239,19 @@ impl NeatNetwork {
             local_occupied_connections,
             highest_local_innovation,
             activations,
-            fitness: 0.,
-            network_config: network_config.clone()
+            previous_fitness: 0.,
+            average_fitness: [0.; AVERAGE_FITNESS_WINDOW_SIZE],
+            network_config: network_config.clone(),
+
+            // TODO: Should we initialize with sorted or not? I think not
+            topology_sort_cached: Vec::new()
         }
     }
 
     /// Mutates the network in one of many ways
     pub fn mutate(&mut self) -> () {
         let mut rng = thread_rng();
-        let MutationProbablities {
+        let GenomeMutationProbablities {
             split_connection,
             create_connection,
             change_weight,
@@ -276,7 +292,7 @@ impl NeatNetwork {
         let mut rng = thread_rng();
         let length = self.connection_genes.len();
         let gene = &mut self.connection_genes[rng.gen_range(0..length)];
-        gene.mutate_weight();
+        gene.mutate_weight(&self.network_config.weight_change_probabilities);
     }
 
     fn mutate_toggle_random_gene(&mut self) -> () {
@@ -463,13 +479,17 @@ impl NeatNetwork {
         }
     }
 
+    // TODO Remove
     pub fn title(&self, text: String) -> String {
-        format!("{} ({:.3})", text, self.fitness())
+        format!("{} ({:.3})", text, self.previous_fitness())
     }
 
     /// Takes the input vector, and propagates it through all
     /// node genes and connections and returns the output layer.
     pub fn calculate_output(&mut self, input: Vec<f32>) -> Vec<f32> {
+        self.calculate_output_cached_topology(input, true)
+    }
+    pub fn calculate_output_cached_topology(&mut self, input: Vec<f32>, use_topology_cache: bool) -> Vec<f32> {
         assert!(input.len() == self.input_size);
         for node_gene in self.node_genes.iter_mut() {
             node_gene.set_activation(0.0);
@@ -482,9 +502,15 @@ impl NeatNetwork {
 
         // Iterates through all neurons (non input layer) and sums all the incoming nodes * weight
         // and adds a bias. 
-        let topology_order = self.topological_sort().unwrap();
+        let topology_order =
+            if use_topology_cache { &self.topology_sort_cached }
+            else {
+                self.topology_sort_cached = self.topological_sort().unwrap();
+                &self.topology_sort_cached
+            };
+
         for index in topology_order {
-            let node = &self.node_genes[index];
+            let node = &self.node_genes[*index];
 
             // Skip input nodes
             if node.node_type() == NodeGeneType::Input { continue; };
@@ -511,12 +537,12 @@ impl NeatNetwork {
                 },
                 _ => unreachable!()
             };
-            self.node_genes[index].set_activation(activated_sum);
+            self.node_genes[*index].set_activation(activated_sum);
         }
-
+        
         let outputs: Vec<f32> = self.node_genes[self.input_size..(self.input_size + self.output_size)]
             .iter().map(|e| e.activation()).collect();
-
+    
         // Apply output activation
         outputs.iter().enumerate().map(|(i, e)| self.activations.output.run(&outputs, i)).collect()
     }
@@ -672,15 +698,26 @@ impl NeatNetwork {
     pub fn input_size(&self) -> usize { self.input_size }
     pub fn output_size(&self) -> usize { self.output_size }
     pub fn node_genes(&self) -> &Vec<NodeGene> { &self.node_genes }
-    pub fn fitness(&self) -> f32 { self.fitness }
+    pub fn previous_fitness(&self) -> f32 { self.previous_fitness }
     pub fn activations(&self) -> NetworkActivations { self.activations }
     pub fn local_occupied_connections(&self) -> &HashSet<(usize, usize)> { &self.local_occupied_connections }
     pub fn network_config(&self) -> Arc<NetworkConfig> { self.network_config.clone() }
 
+    /// Returns the average fitness of the previous 
+    /// `AVERAGE_FITNESS_WINDOW_SIZE` nr of evaluations
+    pub fn average_fitness(&self) -> f32 {
+        self.average_fitness.iter().sum::<f32>() / AVERAGE_FITNESS_WINDOW_SIZE as f32
+    }
+
     /// Store the fitness of the current network
     pub fn evaluate_fitness(&mut self, fitness_func: fn(&mut Self) -> f32) -> () {
+        self.topology_sort_cached = self.topological_sort().unwrap();
         let score = (fitness_func)(self);
-        self.fitness = score;
+        self.previous_fitness = score;
+
+        // Set new average
+        self.average_fitness.rotate_right(1);
+        self.average_fitness[0] = score;
     }
 }
 
