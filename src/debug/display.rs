@@ -2,10 +2,12 @@
 use core::f32;
 use std::collections::HashMap;
 use eframe::{egui::{self, pos2, Align2, Color32, FontId, Key, Painter, Pos2, Rect}, emath::Rot2, epaint::PathStroke};
-use crate::{neural_network::{connection_gene::ConnectionGene, network::NeatNetwork, node_gene::{NodeGene, NodeGeneType}}, trainer::evolution::Evolution};
+use rand_distr::num_traits::Signed;
+use crate::{neural_network::{connection_gene::ConnectionGene, network::{NeatNetwork, AVERAGE_FITNESS_WINDOW_SIZE}, node_gene::{NodeGene, NodeGeneType}}, trainer::evolution::Evolution, utils::get_unix_time};
 
 /* Constants */
 const NODE_SIZE: f32 = 5.;
+const AVERAGE_FITNESS_LEN_GRAPH: usize = 50;
 
 struct DrawContext {
     evolution: Evolution,
@@ -20,6 +22,16 @@ struct DrawContext {
     /// What we should save a network as
     save_name: Option<String>,
     speed_gen: bool,
+
+    /// get_unix_time, last time we generated generation
+    previous_gen: u128,
+    ms_delay: u128,
+    average_fitnesses: [f32; AVERAGE_FITNESS_LEN_GRAPH],
+
+    /// How many times we call `generation` per frame
+    /// when in speed gen
+    gens_per_frame: usize,
+    show_disabled: bool
 }
 pub fn start_debug_display(evolution: Evolution) -> () {
     let options = eframe::NativeOptions::default();
@@ -34,6 +46,11 @@ pub fn start_debug_display(evolution: Evolution) -> () {
             info: None,
             save_name: None,
             speed_gen: false,
+            previous_gen: get_unix_time(),
+            ms_delay: 0,
+            average_fitnesses: [0.0; AVERAGE_FITNESS_LEN_GRAPH],
+            gens_per_frame: 1,
+            show_disabled: true
         }))),
     ).unwrap();
 }
@@ -45,9 +62,7 @@ impl eframe::App for DrawContext {
             let viewport_rect = ctx.input(|i: &egui::InputState| i.screen_rect());
             let (w, h) = (viewport_rect.width(), viewport_rect.height() - self.tab_height);
             let mut reset = false;
-            draw_top_tab(self, ctx, _frame, painter);
-            draw_bottom_tab(self, ctx, _frame, painter);
-            
+            let mut generated_this_frame = false;
 
             ctx.input(|i| {
                 if !i.raw.events.is_empty() {
@@ -62,13 +77,20 @@ impl eframe::App for DrawContext {
             });
 
             if self.speed_gen {
-                if self.evolution.generation() {
-                    self.speed_gen = false;
-                };
+                let new_time = get_unix_time();
+                self.ms_delay = new_time - self.previous_gen;
+                generated_this_frame = true;
+                self.previous_gen = new_time;
+
+                for _ in 0..self.gens_per_frame {
+                    if self.evolution.generation() {
+                        self.speed_gen = false;
+                    };
+                }
                 ctx.request_repaint();
             }
-
             if ctx.input(|i| i.key_pressed(Key::Space)) {
+                generated_this_frame = true;
                 self.evolution.generation();
                 reset = true;
             }else if ctx.input(|i| i.key_pressed(Key::ArrowLeft)) {
@@ -85,17 +107,23 @@ impl eframe::App for DrawContext {
                 }
             }else if ctx.input(|i| i.key_released(Key::Q)) {
                 self.speed_gen = !self.speed_gen;
+                self.ms_delay = 0;
+                self.previous_gen = get_unix_time();
+            }else if ctx.input(|i| i.key_pressed(Key::H)) {
+                self.show_disabled = !self.show_disabled;
             }
-            
-            
+            else if ctx.input(|i| i.key_released(Key::Num1)) { self.gens_per_frame = 1 }
+            else if ctx.input(|i| i.key_released(Key::Num2)) { self.gens_per_frame = 2 }
+            else if ctx.input(|i| i.key_released(Key::Num3)) { self.gens_per_frame = 3 }
+            else if ctx.input(|i| i.key_released(Key::Num4)) { self.gens_per_frame = 4 }
+            else if ctx.input(|i| i.key_released(Key::Num5)) { self.gens_per_frame = 5 }
+            else if ctx.input(|i| i.key_released(Key::Num6)) { self.gens_per_frame = 6 }
+            else if ctx.input(|i| i.key_released(Key::Num7)) { self.gens_per_frame = 7 }
             
             let networks = self.evolution.species()[self.species_index].networks();
             let cols = (networks.len() as f32).sqrt() as usize; // Number of columns
             let rows = (networks.len() + cols - 1) / cols;    // Number of rows
-            
             let (mut min_fitness, mut max_fitness) = (f32::MAX, f32::MIN);
-            
-        
 
             if ctx.input(|i| i.key_pressed(Key::F)) {
                 let mut best_network = (0, 0); // (species_index, network_index)
@@ -103,7 +131,7 @@ impl eframe::App for DrawContext {
                 // Find the best network, go through all species and networks
                 for (species_index, species) in self.evolution.species().iter().enumerate() {
                     for (network_index, network) in species.networks().iter().enumerate() {
-                        let fitness = network.fitness();
+                        let fitness = network.average_fitness();
                         if fitness > max_fitness {
                             max_fitness = fitness;
                             best_network = (species_index, network_index);
@@ -115,8 +143,12 @@ impl eframe::App for DrawContext {
                 // self.focusing = Some(best_network.1);
             }
 
+            draw_top_tab(&self, ctx, _frame, painter);
+            draw_bottom_tab(&self, ctx, _frame, painter);
+
             let cell_width = w / cols as f32;
-            let cell_height = (h - self.tab_height) / rows as f32;
+            let cell_height = (h - self.tab_height * 2.) / rows as f32;
+            let padding = (cell_height + cell_height) / 2. * 0.2;
 
             let pos = ctx.input(|i| i.pointer.hover_pos()).unwrap_or(pos2(f32::MIN, f32::MIN));
             if self.focusing.is_none() {
@@ -149,7 +181,7 @@ impl eframe::App for DrawContext {
             /* Focus and display one network */
             if let Some(focus_index) = self.focusing {
                 let network = &networks[focus_index];
-                if let Some(info) = draw_network(self.focusing, (0., self.tab_height), network, w, h, 60., painter, pos) {
+                if let Some(info) = draw_network(self.focusing, (0., self.tab_height), network, w, h, 60., painter, pos, self.show_disabled) {
                     self.info = Some(info);
                 }
             }
@@ -181,16 +213,22 @@ impl eframe::App for DrawContext {
                         },
                         0.0, if hovering {Color32::from_rgba_unmultiplied(255, 255, 255, 1)} else {Color32::TRANSPARENT}
                     );
-                    if let Some(info) = draw_network(self.focusing, coordinate, network, cell_width, cell_height, 60., painter, pos) {
+                    if let Some(info) = draw_network(self.focusing, coordinate, network, cell_width, cell_height, padding, painter, pos, self.show_disabled) {
                         self.info = Some(info);
                     }
                 }
             }
+
+            if generated_this_frame {
+                self.average_fitnesses.rotate_left(1);
+                self.average_fitnesses[AVERAGE_FITNESS_LEN_GRAPH - 1] = self.evolution.average_fitness();
+            }
+            draw_fitness_graph(w, h, self.tab_height, &self.average_fitnesses, painter);
         });
     }
 }
 
-fn draw_top_tab(draw_ctx: &mut DrawContext, ctx: &egui::Context, _frame: &mut eframe::Frame, painter: &Painter) -> () {
+fn draw_top_tab(draw_ctx: &DrawContext, ctx: &egui::Context, _frame: &mut eframe::Frame, painter: &Painter) -> () {
     let mut x = 0.0;
     let tab_w = 80.;
     let tab_h = draw_ctx.tab_height;
@@ -274,7 +312,7 @@ fn draw_top_tab(draw_ctx: &mut DrawContext, ctx: &egui::Context, _frame: &mut ef
     }
 }
 
-fn draw_bottom_tab(draw_ctx: &mut DrawContext, ctx: &egui::Context, _frame: &mut eframe::Frame, painter: &Painter) -> () {
+fn draw_bottom_tab(draw_ctx: &DrawContext, ctx: &egui::Context, _frame: &mut eframe::Frame, painter: &Painter) -> () {
     let viewport_rect = ctx.input(|i: &egui::InputState| i.screen_rect());
     let (w, h) = (viewport_rect.width(), viewport_rect.height());
     let tab_h = draw_ctx.tab_height;
@@ -302,7 +340,7 @@ fn draw_bottom_tab(draw_ctx: &mut DrawContext, ctx: &egui::Context, _frame: &mut
     }else {
         painter.text(
             pos2(tab_h / 2., h - tab_h/2.), Align2::LEFT_CENTER,
-            format!("{:<30} | Fit: {:.4} | Generation: {:<8}", species.get_name(), format!("{:<8}", species.previous_average_score()), draw_ctx.evolution.get_generation()),
+            format!("{}g/f {:<24} | ms: {} | Fit: {:.4} | Generation: {:<8}", draw_ctx.gens_per_frame, species.get_name(), draw_ctx.ms_delay, format!("{:<8}", species.previous_average_score()), draw_ctx.evolution.get_generation()),
             FontId::new(20., egui::FontFamily::Monospace),
             Color32::WHITE
         );
@@ -380,10 +418,51 @@ fn draw_dividers(rows: usize, cols: usize, cell_height: f32, cell_width: f32, w:
         let x = cell_width * row as f32;
 
         painter.line_segment(
-            [(x, tab_height).into(), (x, h).into()],
+            [(x, tab_height).into(), (x, h - tab_height).into()],
             (0.2, Color32::GRAY),
         );
     }
+
+    painter.line_segment(
+        [(0., h).into(), (w, h).into()],
+        (0.2, Color32::GRAY),
+    );
+}
+
+fn draw_fitness_graph(w: f32, h: f32, tab_height: f32, average_fitnesses: &[f32], painter: &Painter) -> () {
+    let max_fitness = average_fitnesses.iter().max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Less)).unwrap_or(&0.0);
+    let min_fitness = average_fitnesses.iter().max_by(|a, b| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Greater)).unwrap_or(&0.0);
+    let value_range = max_fitness - min_fitness;
+
+    /* Holy what a name */
+    let background_helper_lines_per_tab_height = 10;
+    let amount_of_points = average_fitnesses.len();
+    let step_size_x = w / (amount_of_points - 1) as f32;
+    
+    // println!("{min_fitness} {max_fitness}");
+    /* Draw "helper" lines */
+    if amount_of_points < 1 { return };
+
+    for i in 0..(amount_of_points - 1) {
+        let curr = h - (average_fitnesses[i] - min_fitness) / value_range * (tab_height * 0.9);
+        let next = h - (average_fitnesses[i + 1] - min_fitness) / value_range * (tab_height * 0.9);
+
+        let curr_x = i as f32 * step_size_x;
+        let next_x = (i + 1) as f32 * step_size_x;
+
+        painter.line_segment(
+            [(curr_x, curr).into(), (next_x, next).into()],
+            (0.4, Color32::WHITE),
+        );
+    }
+
+    painter.text(
+        pos2(w / 2., h - tab_height / 2.),
+        Align2::CENTER_CENTER,
+        format!("{:.3} max{:.3}", average_fitnesses[AVERAGE_FITNESS_LEN_GRAPH - 1], max_fitness),
+        FontId::new(28., egui::FontFamily::Monospace),
+        Color32::WHITE
+    );
 }
 
 /// Returns a node gene if hovering above it
@@ -393,12 +472,13 @@ fn draw_network(
     network: &NeatNetwork,
     cell_width: f32, cell_height: f32,
     padding: f32, painter: &Painter,
-    mouse: Pos2
+    mouse: Pos2,
+    show_disabled: bool
 ) -> Option<NodeGene> {
     let mut return_node = None;
     painter.text(
-        pos2(coordinate.0 + cell_width / 2., coordinate.1 + cell_height - 20.),
-        Align2::CENTER_CENTER, format!("{:.3}", network.fitness()),
+        pos2(coordinate.0 + cell_width / 2., coordinate.1 + cell_height - cell_height * 0.1),
+        Align2::CENTER_CENTER, format!("avg{}={:.3}", AVERAGE_FITNESS_WINDOW_SIZE, network.average_fitness()),
         FontId::default(), Color32::GRAY
     );
 
@@ -472,17 +552,24 @@ fn draw_network(
     }
 
     for conn in network.get_genes() {
+        if !show_disabled && !conn.enabled() { continue; }
         let n_in = conn.node_in();
         let n_out = conn.node_out();
         let (x1, y1) = node_positions[&n_in];
         let (x2, y2) = node_positions[&n_out];
         let color = match conn.enabled() {
-            true => Color32::WHITE,
+            true => {
+                if conn.weight().is_positive() {
+                    Color32::WHITE
+                }else {
+                    Color32::WHITE
+                }
+            },
             false => Color32::RED
         };
 
-        let path_stroke = (conn.weight().max(0.2), color);
-        draw_arrow(is_focusing, conn.weight(), painter, (x1, y1), (x2, y2), path_stroke);
+        let path_stroke = (conn.weight().abs(), color);
+        draw_arrow(is_focusing, conn.weight().abs(), painter, (x1, y1), (x2, y2), path_stroke);
         painter.line_segment(
             [(x1, y1).into(), (x2, y2).into()],
             path_stroke
