@@ -1,7 +1,7 @@
 use std::{collections::{HashMap, HashSet}, fmt::Debug, hash::Hash, iter, sync::{Arc, Mutex}};
 use rand::{rngs::ThreadRng, seq::SliceRandom, thread_rng, Rng};
 use serde_derive::{Serialize, Deserialize};
-use crate::utils::Timer;
+use crate::{trainer::config::{mutation::MutationProbablities, network_config::NetworkConfig}, utils::Timer};
 
 use super::{activation::NetworkActivations, connection_gene::ConnectionGene, node_gene::{NodeGene, NodeGeneType}};
 
@@ -55,6 +55,9 @@ pub struct NeatNetwork {
     /// Stores the previous points which were accumulated during
     /// the latest fitness evaluation test.
     fitness: f32,
+
+    #[serde(skip)]
+    network_config: Arc<NetworkConfig>
 }
 
 impl NeatNetwork {
@@ -82,6 +85,7 @@ impl NeatNetwork {
         global_innovation: Arc<Mutex<usize>>,
         global_occupied_connections: Arc<Mutex<HashMap<(usize, usize), usize>>>,
         activations: NetworkActivations,
+        network_config: Arc<NetworkConfig>
     ) -> Self {
         // Create node genes
         let mut node_genes = Vec::with_capacity(input + output);
@@ -108,7 +112,8 @@ impl NeatNetwork {
                     global_occupied_connections.clone(),
                     &mut local_occupied_connections,
                     &mut highest_local_innovation,
-                    local_innovation
+                    local_innovation,
+                    true
                 );
 
                 // We don't need to know if we should increment
@@ -139,6 +144,7 @@ impl NeatNetwork {
             highest_local_innovation,
             activations,
             fitness: 0.,
+            network_config: network_config.clone()
         }
     }
 
@@ -151,6 +157,7 @@ impl NeatNetwork {
         global_occupied_connections: Arc<Mutex<HashMap<(usize, usize), usize>>>,
         activations: NetworkActivations,
         connection_genes: Vec<ConnectionGene>,
+        network_config: Arc<NetworkConfig>,
     ) -> Self {
         let mut highest_local_innovation = 0;
         let mut local_occupied_connections = HashSet::new();
@@ -221,28 +228,37 @@ impl NeatNetwork {
             highest_local_innovation,
             activations,
             fitness: 0.,
+            network_config: network_config.clone()
         }
     }
 
     /// Mutates the network in one of many ways
     pub fn mutate(&mut self) -> () {
         let mut rng = thread_rng();
-        let probabilities: Vec<(i32, fn(&mut NeatNetwork) -> ())> = vec![
+        let MutationProbablities {
+            split_connection,
+            create_connection,
+            change_weight,
+            toggle_weight,
+            nothing
+        } = self.network_config.mutation_probabilities;
+
+        let probabilities: Vec<(usize, fn(&mut NeatNetwork) -> ())> = vec![
             /* Randomly select one gene for mutation */
-            (100, Self::mutate_random_gene_weight),
+            (change_weight, Self::mutate_random_gene_weight),
             
             /* Split connection or create new */
-            (5, Self::mutate_split_connection),
-            (8, Self::mutate_create_connection),
+            (split_connection, Self::mutate_split_connection),
+            (create_connection, Self::mutate_create_connection),
 
             /* Toggle random connection */
-            (10, Self::mutate_toggle_random_gene),
+            (toggle_weight, Self::mutate_toggle_random_gene),
 
             /* Mutate nothing */
-            (20, |_| {}),
+            (nothing, |_| {}),
         ];
 
-        let total: i32 = probabilities.iter().map(|e| e.0).sum();
+        let total: usize = probabilities.iter().map(|e| e.0).sum();
         let random_number = rng.gen_range(0..total);
         let mut cumulative = 0;
         for (index, &(probability, func)) in probabilities.iter().enumerate() {
@@ -302,7 +318,8 @@ impl NeatNetwork {
             self.global_occupied_connections.clone(),
             &mut self.local_occupied_connections,
             &mut self.highest_local_innovation,
-            current_innovation + 1
+            current_innovation + 1,
+            false
         );
         let (output_connection, should_increment_outgoing) = Self::create_connection(
             self.node_gene_index, gene_node_out,
@@ -310,7 +327,8 @@ impl NeatNetwork {
             self.global_occupied_connections.clone(),
             &mut self.local_occupied_connections,
             &mut self.highest_local_innovation,
-            current_innovation + 2
+            current_innovation + 2,
+            false
         );
 
         // If the genes were actually created we increment the 
@@ -370,6 +388,7 @@ impl NeatNetwork {
             &mut self.local_occupied_connections,
             &mut self.highest_local_innovation,
             current_innovation + 1,
+            false
         );
 
         // Increase innovation to match the previous self.get_global_innovation() + 1
@@ -399,6 +418,7 @@ impl NeatNetwork {
         local_occupied_connections: &mut HashSet<(usize, usize)>,
         highest_local_innovation_number: &mut usize,
         innovation_number: usize,
+        skip_loop_check: bool
     ) -> (Option<ConnectionGene>, bool) {
         let global_occupied_connections = &mut global_occupied_connections.lock().unwrap();
         match global_occupied_connections.get(&(node_in, node_out)) {
@@ -413,7 +433,7 @@ impl NeatNetwork {
                     (None, false)
                 }else {
                     /* If we don't find a cycle */
-                    if !Self::has_cycle(local_occupied_connections.iter().chain(iter::once(&(node_in, node_out)))) {
+                    if skip_loop_check || !Self::has_cycle(local_occupied_connections.iter().chain(iter::once(&(node_in, node_out)))) {
                         let innovation = *inherited_innovation;
                         if innovation > *highest_local_innovation_number {
                             *highest_local_innovation_number = innovation;
@@ -426,7 +446,7 @@ impl NeatNetwork {
                 }
             },
             None => {
-                if !Self::has_cycle(local_occupied_connections.iter().chain(iter::once(&(node_in, node_out)))) {
+                if skip_loop_check || !Self::has_cycle(local_occupied_connections.iter().chain(iter::once(&(node_in, node_out)))) {
                     // If it doesn't exist in global connections, it won't exist
                     // in our local occupied connections.
                     // Returns with true because we've incremented
@@ -655,6 +675,7 @@ impl NeatNetwork {
     pub fn fitness(&self) -> f32 { self.fitness }
     pub fn activations(&self) -> NetworkActivations { self.activations }
     pub fn local_occupied_connections(&self) -> &HashSet<(usize, usize)> { &self.local_occupied_connections }
+    pub fn network_config(&self) -> Arc<NetworkConfig> { self.network_config.clone() }
 
     /// Store the fitness of the current network
     pub fn evaluate_fitness(&mut self, fitness_func: fn(&mut Self) -> f32) -> () {
