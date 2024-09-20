@@ -4,7 +4,7 @@ use rand::{thread_rng, Rng};
 use rayon::{iter::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator}, slice::ParallelSliceMut};
 
 use crate::neural_network::{activation::{Activation, NetworkActivations}, connection_gene::ConnectionGene, network::{self, NeatNetwork}};
-use super::{evolution_config::StopCondition, species::Species};
+use super::{config::{mutation::MutationProbablities, network_config::NetworkConfig, stop_condition::StopCondition}, species::Species};
 
 /// How many times we mutate the representative before cloning
 /// and creating a distinct species
@@ -36,6 +36,7 @@ pub struct EvolutionBuilder {
     /// eachother each generation)
     species_size: usize,
 
+    network_config: NetworkConfig,
     stop_condition: StopCondition,
 
     hidden_activation: Activation,
@@ -77,7 +78,8 @@ impl EvolutionBuilder {
             species_size: DEFAULT_SPECIES_SIZE,
             hidden_activation: Activation::LeakyRelu,
             output_activation: Activation::Sigmoid,
-            stop_condition: StopCondition::default()
+            stop_condition: StopCondition::default(),
+            network_config: NetworkConfig::default()
         }
     }
 
@@ -102,6 +104,8 @@ impl EvolutionBuilder {
 
     /// Set the stop condition for evolution
     pub fn with_stop_condition(&mut self, stop: StopCondition) -> &mut Self { self.stop_condition = stop; self }
+    /// Set the diffrent mutation probabilities for evolution
+    pub fn with_mutation_probabilities(&mut self, prob: MutationProbablities) -> &mut Self { self.network_config.mutation_probabilities = prob; self }
 
     /// This function will run the network trough some test that
     /// the network is trained to do. The function will return an
@@ -129,7 +133,8 @@ impl EvolutionBuilder {
         let hidden_activation = self.hidden_activation;
         let output_activation = self.output_activation;
         let activations = NetworkActivations::new(hidden_activation, output_activation);
-        
+        let network_config = Arc::new(self.network_config.clone());
+
         // Create species
         let mut species: Vec<Species> = Vec::with_capacity(batch_size);
         let mut global_occupied_connections = Arc::new(Mutex::new(HashMap::new()));
@@ -142,6 +147,7 @@ impl EvolutionBuilder {
                 global_innovation_number.clone(),
                 global_occupied_connections.clone(),
                 activations,
+                network_config.clone()
             );
 
             species.push(Species::new(
@@ -163,7 +169,7 @@ impl EvolutionBuilder {
             activations,
             stop_condition: self.stop_condition.clone(),
             generation: 0,
-            species_size
+            species_size,
         }
     }
 }
@@ -179,7 +185,6 @@ impl Evolution {
     pub fn generation(&mut self) -> bool {
         self.generation += 1;
         let generation = Arc::new(self.generation);
-
         let mut worst_performing = Arc::new(Mutex::new((f32::MAX, 0)));
         let mut best_performing = Arc::new(Mutex::new((f32::MIN, 0, 0)));
         let mut should_stop = Arc::new(Mutex::new(false));

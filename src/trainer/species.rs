@@ -188,6 +188,7 @@ impl Species {
             self.global_occupied_connections.clone(),
             network1.activations(),
             child_genes,
+            network1.network_config()
         )
     }
 
