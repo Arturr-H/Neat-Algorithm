@@ -1,7 +1,11 @@
 [package]
-name = "blaster_boss_2000"
+name = "neat_algorithm"
 version = "0.1.0"
 edition = "2021"
+
+## For unit tests
+[lib]
+name = "neat_algorithm"
 
 [dependencies]
 eframe = "0.28.1"
