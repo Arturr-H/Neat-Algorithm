@@ -1,6 +1,10 @@
-use std::{collections::HashMap, sync::{Arc, Mutex}};
+/* Imports */
+use std::{collections::HashMap, sync::{Arc, Mutex}, time::Duration};
 use rand::{thread_rng, Rng};
-use crate::neural_network::{connection_gene::ConnectionGene, network::{self, NeatNetwork}};
+use crate::{neural_network::{connection_gene::ConnectionGene, network::{self, NeatNetwork}}, snake, utils::Timer};
+
+/* Constants */
+const SPECIES_AVERAGE_SCORE_WINDOW_SIZE: usize = 25;
 
 pub struct Species {
     /// The representative of a species is a network just like the other
@@ -12,11 +16,22 @@ pub struct Species {
     /// All networks who are initially cloned from the representative
     networks: Vec<NeatNetwork>,
 
-    previous_average_score: f32,
+    /// The sum of all accumulated fitnesses gathered by all networks
+    /// in self during the previous fitness function, divided by the
+    /// amount of networks in self.
+    previous_fitness: f32,
+
+    /// A list of `SPECIES_AVERAGE_SCORE_WINDOW_SIZE` nr amount of
+    /// `previous_fitness`es.
+    fitness_window: [f32; SPECIES_AVERAGE_SCORE_WINDOW_SIZE],
+
+    /// `fitness_window` summed and divided by amount of networks in self.
+    average_fitness: f32,
 
     global_innovation_number: Arc<Mutex<usize>>,
     global_occupied_connections: Arc<Mutex<HashMap<(usize, usize), usize>>>,
     name: String,
+    index: usize,
 }
 
 impl Species {
@@ -28,6 +43,7 @@ impl Species {
         global_occupied_connections: Arc<Mutex<HashMap<(usize, usize), usize>>>,
         representative: NeatNetwork,
         size: usize,
+        index: usize,
     ) -> Self {
         assert!(size > 0, "Size must be at least 1 to fit representative");
         let mut networks: Vec<NeatNetwork> = Vec::with_capacity(size);
@@ -41,10 +57,13 @@ impl Species {
 
         Self {
             networks,
-            previous_average_score: 0.,
+            previous_fitness: 0.,
+            fitness_window: [0.0; SPECIES_AVERAGE_SCORE_WINDOW_SIZE],
+            average_fitness: 0.,
             global_occupied_connections,
             global_innovation_number,
             name: Self::generate_name(),
+            index
         }
     }
 
@@ -61,9 +80,8 @@ impl Species {
     /// without changes. The 70% of the rest networks are randomly mutated
     /// and THEN placed in the next generation
     pub fn compute_generation(&mut self) -> () {
-        let mut scores: Vec<f32> = self.networks.iter().map(|e| e.average_fitness()).collect();
+        let mut scores: Vec<f32> = self.networks.iter().map(|e| e.previous_average_fitness()).collect();
         let mut total_score = scores.iter().sum::<f32>();
-        self.previous_average_score = total_score / self.networks.len() as f32;
 
         // We won't modify the top 30, that's why we only deal with bottom 70 here
         let bottom_70_amount = (self.networks.len() as f32 * 0.7).round() as usize;
@@ -76,16 +94,17 @@ impl Species {
         }
 
         // Chance of cloning one of the best networks to replace one of the worse
-        if thread_rng().gen_bool(0.05) {
+        // if thread_rng().gen_bool(0.05) {
             // Worst
             self.networks[worst_index] = self.networks[top_index].clone();
-        }
+        // }
     }
 
     /// Crossover two parents and insert offspring
     pub fn crossover(&mut self, fitness_function: fn(&mut NeatNetwork) -> f32) -> () {
         assert!(self.networks.len() > 1);
         let mut rng = thread_rng();
+        let max_distance = 0.2;
 
         // Should happen after calculated fitness, that's why we can
         // get the fitness values here
@@ -93,7 +112,7 @@ impl Species {
         let networks_with_fitness: Vec<(f32, &NeatNetwork)> = self.networks
             .iter()
             .map(|e| {
-                let fitness = e.average_fitness();
+                let fitness = e.previous_average_fitness();
                 summed_fitness += fitness;
                 (fitness, e)
             })
@@ -104,19 +123,33 @@ impl Species {
         let n1 = &self.networks[rng.gen_range(0..self.networks.len())];
         let n2 = &self.networks[rng.gen_range(0..self.networks.len())];
         if summed_fitness > 0. {
-            for i in 0..2 {
-                let mut cumulative = 0.0;
-                let mut random_fitness = rng.gen_range(0.0..summed_fitness);
-                for (network_index, (fitness, net)) in networks_with_fitness.iter().enumerate() {
-                    if fitness < &worst_performing.1 {
-                        worst_performing.0 = network_index;
-                        worst_performing.1 = *fitness;
-                    }
+            // 5 tries to find two parents to produce offspring
+            for i in 0..5 {
 
-                    cumulative += fitness;
-                    if random_fitness < cumulative {
-                        networks.push((net, fitness));
+                // Two randomly selected parents (more fitness => higher
+                // chance of being selected).
+                for i in 0..2 {
+                    let mut cumulative = 0.0;
+                    let mut random_fitness = rng.gen_range(0.0..summed_fitness);
+                    for (network_index, (fitness, net)) in networks_with_fitness.iter().enumerate() {
+                        if fitness < &worst_performing.1 {
+                            worst_performing.0 = network_index;
+                            worst_performing.1 = *fitness;
+                        }
+
+                        cumulative += fitness;
+                        if random_fitness < cumulative {
+                            networks.push((net, fitness));
+                        }
                     }
+                }
+
+                // If too much distance
+                if Self::distance(networks[0].0, networks[1].0) > max_distance {
+                    networks.clear();
+                    continue;
+                }else {
+                    break;
                 }
             }
         }else {
@@ -124,10 +157,19 @@ impl Species {
             networks.push((&n2, &0.0));
         }
 
+        // We didn't find any two parents with small enough distance.
+        if networks.is_empty() {
+            return
+        }
+
         // TODO I dont know if we should be replacing the worst with offspring but hey
         let mut offspring = self.crossover_networks(networks[0].0, networks[1].0, *networks[0].1, *networks[1].1);
         if !NeatNetwork::has_cycle(offspring.local_occupied_connections().iter()) {
             offspring.evaluate_fitness(fitness_function);
+
+            // Check docs of this method for explanation
+            offspring.fill_average();
+
             self.networks[worst_performing.0] = offspring;
         }
     }
@@ -256,16 +298,32 @@ impl Species {
     /// Makes all networks in this species go through fitness
     /// function and store it for later use
     pub fn generate_fitness(&mut self, fitness_function: fn(&mut NeatNetwork) -> f32) -> () {
+        let mut fitness_this_gen = 0.0;
         for net in self.networks.iter_mut() {
             net.evaluate_fitness(fitness_function);
+            fitness_this_gen += net.average_fitness();
         }
+        
+        let networks_len = self.networks.len() as f32;
+        let species_average = fitness_this_gen / networks_len;
+        self.previous_fitness = species_average;
+        
+        self.fitness_window.rotate_right(1);
+        self.fitness_window[0] = species_average;
+
+        let avg = self.fitness_window.iter().sum::<f32>() / SPECIES_AVERAGE_SCORE_WINDOW_SIZE as f32;
+        self.average_fitness = avg;
     }
 
     /// Get the average score that the networks performed
     /// during the last fitness test
-    pub fn previous_average_score(&self) -> f32 {
-        self.previous_average_score
+    pub fn previous_fitness(&self) -> f32 {
+        self.previous_fitness
     }
+    pub fn average_fitness(&self) -> f32 {
+        self.average_fitness
+    }
+    pub fn index(&self) -> usize { self.index }
 
     fn bottom_n_with_indices(numbers: &Vec<f32>, n: usize) -> Vec<usize> {
         let mut indexed_numbers: Vec<(usize, &f32)> = numbers.iter().enumerate().collect();
@@ -301,6 +359,4 @@ impl Species {
     pub fn get_name(&self) -> &str {
         &self.name
     }
-
-    
 }

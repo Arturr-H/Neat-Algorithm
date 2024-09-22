@@ -3,7 +3,7 @@ use std::{collections::{HashMap, HashSet}, hash::Hash, sync::{Arc, Mutex}, threa
 use rand::{thread_rng, Rng};
 use rayon::{iter::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator}, slice::ParallelSliceMut};
 
-use crate::neural_network::{activation::{Activation, NetworkActivations}, connection_gene::ConnectionGene, network::{self, NeatNetwork}};
+use crate::{neural_network::{activation::{Activation, NetworkActivations}, connection_gene::ConnectionGene, network::{self, NeatNetwork}}, utils::Timer};
 use super::{config::{mutation::{GenomeMutationProbablities, WeightChangeProbablities}, network_config::NetworkConfig, stop_condition::StopCondition}, species::Species};
 
 /// How many times we mutate the representative before cloning
@@ -36,6 +36,10 @@ pub struct EvolutionBuilder {
     /// eachother each generation)
     species_size: usize,
 
+    /// How often we replace the worst species with the best. (The
+    /// higher number the less often we do that). None = no replacement
+    replace_worst_every_nth_gen: Option<usize>,
+
     network_config: NetworkConfig,
     stop_condition: StopCondition,
 
@@ -58,6 +62,7 @@ pub struct Evolution {
     generation: usize,
     species_size: usize,
     par_chunks_size: usize,
+    replace_worst_every_nth_gen: Option<usize>,
 
     /// To check if we've already got a connection
     /// between two nodes. NEEDS to be (min, max),
@@ -84,6 +89,7 @@ impl EvolutionBuilder {
             stop_condition: StopCondition::default(),
             network_config: NetworkConfig::default(),
             par_chunks_size: 1,
+            replace_worst_every_nth_gen: None
         }
     }
 
@@ -113,6 +119,11 @@ impl EvolutionBuilder {
     pub fn mutation_probabilities(&mut self, prob: GenomeMutationProbablities) -> &mut Self { self.network_config.mutation_probabilities = prob; self }
     /// Set the diffrent mutation probabilities for evolution
     pub fn weight_change_probabilities(&mut self, prob: WeightChangeProbablities) -> &mut Self { self.network_config.weight_change_probabilities = prob; self }
+
+    /// Every nth generation we'll replace the worst performing
+    /// network with the best berforming so it can mutate in diffrent
+    /// ways
+    pub fn replace_worst_every_nth_gen(&mut self, nth: Option<usize>) -> &mut Self { self.replace_worst_every_nth_gen = nth; self }
 
     /// How big each chunk will be when multithreading looping
     /// through all species for running a generation. Default
@@ -171,7 +182,8 @@ impl EvolutionBuilder {
                 global_innovation_number.clone(),
                 global_occupied_connections.clone(),
                 representative,
-                species_size
+                species_size,
+                i
             ));
         }
 
@@ -187,7 +199,8 @@ impl EvolutionBuilder {
             stop_condition: self.stop_condition.clone(),
             generation: 0,
             species_size,
-            par_chunks_size: self.par_chunks_size
+            par_chunks_size: self.par_chunks_size,
+            replace_worst_every_nth_gen: self.replace_worst_every_nth_gen
         }
     }
 }
@@ -202,69 +215,88 @@ impl Evolution {
     /// and more. Returns true if we should stop generating
     pub fn generation(&mut self) -> bool {
         self.generation += 1;
-        let generation = Arc::new(self.generation);
+        
+        // (species_fitness, species_index)
         let mut worst_performing = Arc::new(Mutex::new((f32::MAX, 0)));
+        // (network_fitness, species_index, net_index)
         let mut best_performing = Arc::new(Mutex::new((f32::MIN, 0, 0)));
         let mut should_stop = Arc::new(Mutex::new(false));
-        // let mut handles = Vec::new();
+        let should_replace = self.replace_worst_every_nth_gen.is_some();
         
         self.species.par_chunks_mut(self.par_chunks_size).enumerate().for_each(|(species_index, species_chunk)| {
             for species in species_chunk {
-                // let handle = thread::spawn(f)
-                // Store fitness in each network
+                // Cache fitness in each network
                 species.generate_fitness(self.fitness_function);
                 
                 // Stop condition
-                let previous_average = species.previous_average_score();
+                let previous_average = species.average_fitness();
                 if self.stop_condition.should_stop(previous_average, self.generation) {
                     *should_stop.lock().unwrap() = true;
                 }
 
-                // Find worst performing
-                if *generation % 10_000 == 0 { 
-                    let mut worst_performing = worst_performing.lock().unwrap();
-                    if previous_average < worst_performing.0 {
-                        *worst_performing = (previous_average, species_index);
-                    }
+                // Cross-over. The genome will also be running `evaluate_fitness`
+                // before inserted into the species, therefore it's guaranteed
+                // that all genomes in this species will have correct previous
+                // fitnesses.
+                //
+                // We find do mod by SPECIES_REPRESENTATIVE_MUTATIONS to wait
+                // for the offspring to fully "fill up" its fitness window which
+                // leads to better fitness representation
+                if self.generation % SPECIES_REPRESENTATIVE_MUTATIONS == 0 {
+                    species.crossover(self.fitness_function);
                 }
-
-                // Create new species from best network
-                for (index, network) in species.networks().iter().enumerate() {
-                    let fitness = network.average_fitness();
-                    let mut best_performing = best_performing.lock().unwrap();
-                    if fitness > best_performing.0 {
-                        *best_performing = (fitness, index, species_index);
-                    }
-                }
-
-                // Cross-over
-                species.crossover(self.fitness_function);
 
                 // Mutate
                 species.compute_generation();
+
+                // Find best and worst
+                if should_replace && self.generation % self.replace_worst_every_nth_gen.unwrap() == 0 {
+                    for (net_index, net) in species.networks().iter().enumerate() {
+                        let net_fitness = net.previous_average_fitness();
+                        let mut best_perf = best_performing.lock().unwrap();
+
+                        /* Find best network */
+                        if net_fitness > best_perf.0 {
+                            *best_perf = (net_fitness, species.index(), net_index)
+                        }
+                    }
+
+                    /* Find worst species index */
+                    let mut worst_perf = worst_performing.lock().unwrap();
+                    let species_fitness = species.average_fitness();
+                    if species_fitness < worst_perf.0 {
+                        *worst_perf = (previous_average, species.index());
+                    }
+                }
             }
         });
 
-        self.replace_least_fit(worst_performing, best_performing);
+        if should_replace {
+            self.replace_least_fit(worst_performing, best_performing);
+        }
         
         *should_stop.clone().lock().unwrap()
     }
 
     fn replace_least_fit(&mut self, worst_species: Arc<Mutex<(f32, usize)>>, best_network: Arc<Mutex<(f32, usize, usize)>>) -> () {
-        if self.generation % 10_000 != 0 { return };
+        if self.generation % self.replace_worst_every_nth_gen.unwrap() != 0 { return };
+
         let best_network = best_network.lock().unwrap();
         let worst_species = worst_species.lock().unwrap();
-        let best_network = &self.species()[best_network.2].networks()[best_network.1];
+
+        println!("REPLACING SPECIES {} with fitness {}", worst_species.1, self.species[worst_species.1].average_fitness());
+        let best_network = &self.species()[best_network.1].networks()[best_network.2];
         self.species[worst_species.1] = Species::new(
             self.global_innovation_number.clone(),
             self.global_occupied_connections.clone(),
             best_network.clone(),
             self.species_size,
+            worst_species.1
         );
     }
 
     pub fn average_fitness(&self) -> f32 {
-        self.species.iter().map(|e| e.previous_average_score()).sum::<f32>() / self.species.len() as f32
+        self.species.iter().map(|e| e.average_fitness()).sum::<f32>() / self.species.len() as f32
     }
 
     /// Returns a reference to all species

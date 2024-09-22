@@ -59,12 +59,13 @@ pub struct NeatNetwork {
     /// the latest fitness evaluation test.
     previous_fitness: f32,
 
-    /// Stores the fitnesses from the last 5 fitness tests
-    average_fitness: [f32; AVERAGE_FITNESS_WINDOW_SIZE],
+    /// Stores the fitnesses from the last `AVERAGE_FITNESS_WINDOW_SIZE` fitness tests
+    fitness_window: [f32; AVERAGE_FITNESS_WINDOW_SIZE],
+    /// Cached latest `AVERAGE_FITNESS_WINDOW_SIZE`nr of average fitnesses
+    average_fitness: f32,
 
     #[serde(skip)]
     network_config: Arc<NetworkConfig>,
-
     topology_sort_cached: Vec<usize>
 }
 
@@ -152,7 +153,8 @@ impl NeatNetwork {
             highest_local_innovation,
             activations,
             previous_fitness: 0.,
-            average_fitness: [0.; AVERAGE_FITNESS_WINDOW_SIZE],
+            average_fitness: 0.,
+            fitness_window: [0.0; AVERAGE_FITNESS_WINDOW_SIZE],
             network_config: network_config.clone(),
 
             // TODO: Should we initialize with sorted or not? I think not
@@ -240,7 +242,8 @@ impl NeatNetwork {
             highest_local_innovation,
             activations,
             previous_fitness: 0.,
-            average_fitness: [0.; AVERAGE_FITNESS_WINDOW_SIZE],
+            average_fitness: 0.,
+            fitness_window: [0.0; AVERAGE_FITNESS_WINDOW_SIZE],
             network_config: network_config.clone(),
 
             // TODO: Should we initialize with sorted or not? I think not
@@ -705,8 +708,13 @@ impl NeatNetwork {
 
     /// Returns the average fitness of the previous 
     /// `AVERAGE_FITNESS_WINDOW_SIZE` nr of evaluations
-    pub fn average_fitness(&self) -> f32 {
-        self.average_fitness.iter().sum::<f32>() / AVERAGE_FITNESS_WINDOW_SIZE as f32
+    pub fn average_fitness(&mut self) -> f32 {
+        let avg = self.fitness_window.iter().sum::<f32>() / AVERAGE_FITNESS_WINDOW_SIZE as f32;
+        self.average_fitness = avg;
+        avg
+    }
+    pub fn previous_average_fitness(&self) -> f32 {
+        self.average_fitness
     }
 
     /// Store the fitness of the current network
@@ -716,8 +724,22 @@ impl NeatNetwork {
         self.previous_fitness = score;
 
         // Set new average
-        self.average_fitness.rotate_right(1);
-        self.average_fitness[0] = score;
+        self.fitness_window.rotate_right(1);
+        self.fitness_window[0] = score;
+
+        // Cache previous average fitness
+        self.average_fitness();
+    }
+
+    /// When we create the offspring, they ofcourse have an empty
+    /// fitness window (previous e.g 25 evaluations have not occured
+    /// yet). Therefore when we do a offspring, its fitness will be
+    /// cloned to fill up the entire array so we get a better accuracy
+    /// when determening the offsprings average fitness.
+    /// 
+    /// Must be called after `evaluate_fitness`
+    pub fn fill_average(&mut self) -> () {
+        self.fitness_window = [self.previous_fitness; AVERAGE_FITNESS_WINDOW_SIZE];
     }
 }
 
