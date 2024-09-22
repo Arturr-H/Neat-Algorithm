@@ -1,15 +1,13 @@
 use core::f32;
-use std::{collections::{HashMap, HashSet}, hash::Hash, sync::{Arc, Mutex}, thread};
-use rand::{thread_rng, Rng};
-use rayon::{iter::{IndexedParallelIterator, IntoParallelRefMutIterator, ParallelIterator}, slice::ParallelSliceMut};
+use std::{collections::HashMap, sync::{Arc, Mutex}};
+use rayon::{iter::ParallelIterator, slice::ParallelSliceMut};
 
-use crate::{neural_network::{activation::{Activation, NetworkActivations}, connection_gene::ConnectionGene, network::{self, NeatNetwork}}, utils::Timer};
+use crate::neural_network::{activation::{Activation, NetworkActivations}, network::NeatNetwork};
 use super::{config::{mutation::{GenomeMutationProbablities, WeightChangeProbablities}, network_config::NetworkConfig, stop_condition::StopCondition}, species::Species};
 
 /// How many times we mutate the representative before cloning
 /// and creating a distinct species
 const SPECIES_REPRESENTATIVE_MUTATIONS: usize = 20;
-const AMOUNT_OF_INITIAL_SPECIES: usize = 10;
 const DEFAULT_SPECIES_SIZE: usize = 10;
 
 /// Struct to make a set amount of networks
@@ -52,11 +50,7 @@ pub struct EvolutionBuilder {
 pub struct Evolution {
     /// All the diffrent networks that compete in groups
     species: Vec<Species>,
-    batch_size: usize,
-    input_nodes: usize,
-    output_nodes: usize,
     fitness_function: fn(&mut NeatNetwork) -> f32,
-    activations: NetworkActivations,
     global_innovation_number: Arc<Mutex<usize>>,
     stop_condition: StopCondition,
     generation: usize,
@@ -165,7 +159,7 @@ impl EvolutionBuilder {
 
         // Create species
         let mut species: Vec<Species> = Vec::with_capacity(batch_size);
-        let mut global_occupied_connections = Arc::new(Mutex::new(HashMap::new()));
+        let global_occupied_connections = Arc::new(Mutex::new(HashMap::new()));
         let global_innovation_number = Arc::new(Mutex::new(0));
 
         for i in 0..batch_size {
@@ -189,13 +183,9 @@ impl EvolutionBuilder {
 
         Evolution {
             species,
-            batch_size,
-            input_nodes,
-            output_nodes,
             fitness_function: self.fitness_function.unwrap(),
             global_innovation_number,
             global_occupied_connections,
-            activations,
             stop_condition: self.stop_condition.clone(),
             generation: 0,
             species_size,
@@ -217,13 +207,13 @@ impl Evolution {
         self.generation += 1;
         
         // (species_fitness, species_index)
-        let mut worst_performing = Arc::new(Mutex::new((f32::MAX, 0)));
+        let worst_performing = Arc::new(Mutex::new((f32::MAX, 0)));
         // (network_fitness, species_index, net_index)
-        let mut best_performing = Arc::new(Mutex::new((f32::MIN, 0, 0)));
-        let mut should_stop = Arc::new(Mutex::new(false));
+        let best_performing = Arc::new(Mutex::new((f32::MIN, 0, 0)));
+        let should_stop = Arc::new(Mutex::new(false));
         let should_replace = self.replace_worst_every_nth_gen.is_some();
         
-        self.species.par_chunks_mut(self.par_chunks_size).enumerate().for_each(|(species_index, species_chunk)| {
+        self.species.par_chunks_mut(self.par_chunks_size).for_each(|species_chunk| {
             for species in species_chunk {
                 // Cache fitness in each network
                 species.generate_fitness(self.fitness_function);
