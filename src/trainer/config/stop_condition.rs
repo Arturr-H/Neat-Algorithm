@@ -15,7 +15,7 @@ pub enum StopConditionType {
 }
 
 #[derive(Clone)]
-pub enum Chain {
+enum Chain {
     Or,
     And,
 }
@@ -27,8 +27,12 @@ impl StopCondition {
         }
     }
 
-    pub fn chain(mut self, chain: Chain, after: StopConditionType) -> Self {
-        self.conditions.push((chain, after));
+    pub fn or(mut self, after: StopConditionType) -> Self {
+        self.conditions.push((Chain::Or, after));
+        self
+    }
+    pub fn and(mut self, after: StopConditionType) -> Self {
+        self.conditions.push((Chain::And, after));
         self
     }
 
