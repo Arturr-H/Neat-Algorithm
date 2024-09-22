@@ -1,7 +1,7 @@
 /* Imports */
-use std::{collections::HashMap, sync::{Arc, Mutex}, time::Duration};
+use std::{collections::HashMap, sync::{Arc, Mutex}};
 use rand::{thread_rng, Rng};
-use crate::{neural_network::{connection_gene::ConnectionGene, network::{self, NeatNetwork}}, snake, utils::Timer};
+use crate::neural_network::{connection_gene::ConnectionGene, network::NeatNetwork};
 
 /* Constants */
 const SPECIES_AVERAGE_SCORE_WINDOW_SIZE: usize = 25;
@@ -49,7 +49,7 @@ impl Species {
         let mut networks: Vec<NeatNetwork> = Vec::with_capacity(size);
         
         networks.push(representative.clone());
-        for i in 0..size - 1 {
+        for _ in 0..size - 1 {
             let mut net = representative.clone();
             net.mutate();
             networks.push(net);
@@ -66,11 +66,6 @@ impl Species {
             index
         }
     }
-
-    pub fn networks_mut(&mut self) -> &mut Vec<NeatNetwork> {
-        &mut self.networks
-    }
-    
     pub fn networks(&self) -> & Vec<NeatNetwork> {
         & self.networks
     }
@@ -80,8 +75,7 @@ impl Species {
     /// without changes. The 70% of the rest networks are randomly mutated
     /// and THEN placed in the next generation
     pub fn compute_generation(&mut self) -> () {
-        let mut scores: Vec<f32> = self.networks.iter().map(|e| e.previous_average_fitness()).collect();
-        let mut total_score = scores.iter().sum::<f32>();
+        let scores: Vec<f32> = self.networks.iter().map(|e| e.previous_average_fitness()).collect();
 
         // We won't modify the top 30, that's why we only deal with bottom 70 here
         let bottom_70_amount = (self.networks.len() as f32 * 0.7).round() as usize;
@@ -124,13 +118,13 @@ impl Species {
         let n2 = &self.networks[rng.gen_range(0..self.networks.len())];
         if summed_fitness > 0. {
             // 5 tries to find two parents to produce offspring
-            for i in 0..5 {
+            for _ in 0..5 {
 
                 // Two randomly selected parents (more fitness => higher
                 // chance of being selected).
-                for i in 0..2 {
+                for _ in 0..2 {
                     let mut cumulative = 0.0;
-                    let mut random_fitness = rng.gen_range(0.0..summed_fitness);
+                    let random_fitness = rng.gen_range(0.0..summed_fitness);
                     for (network_index, (fitness, net)) in networks_with_fitness.iter().enumerate() {
                         if fitness < &worst_performing.1 {
                             worst_performing.0 = network_index;
@@ -175,7 +169,7 @@ impl Species {
     }
 
     /// Get the offspring of two networks
-    pub fn crossover_networks(&self, mut network1: &NeatNetwork, mut network2: &NeatNetwork, fitness1: f32, fitness2: f32) -> NeatNetwork {
+    pub fn crossover_networks(&self, network1: &NeatNetwork, network2: &NeatNetwork, fitness1: f32, fitness2: f32) -> NeatNetwork {
         let mut rng = thread_rng();
         let mut child_genes: Vec<ConnectionGene> = Vec::new();
     
@@ -192,7 +186,7 @@ impl Species {
 
             if gene1.innovation_number() == gene2.innovation_number() {
                 // Matching genes: Randomly inherit from either parent
-                if rand::random() {
+                if rng.gen() {
                     child_genes.push(gene1.clone());
                 } else {
                     child_genes.push(gene2.clone());
@@ -242,7 +236,7 @@ impl Species {
         // Excess genes are the difference between the maximum
         // local innovation number of each network. 
         let mut excess = 0.;
-        let mut highest_local_innovation;
+        let highest_local_innovation;
         if net1_highest > net2_highest {
             highest_local_innovation = net1_highest;
             for gene in net1.get_genes() {

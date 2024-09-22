@@ -1,8 +1,8 @@
 /* Imports */
-use std::{collections::{HashMap, HashSet}, fmt::Debug, hash::Hash, iter, sync::{Arc, Mutex}};
-use rand::{rngs::ThreadRng, seq::SliceRandom, thread_rng, Rng};
+use std::{collections::{HashMap, HashSet}, fmt::Debug, iter, sync::{Arc, Mutex}};
+use rand::{thread_rng, Rng};
 use serde_derive::{Serialize, Deserialize};
-use crate::{trainer::config::{mutation::GenomeMutationProbablities, network_config::NetworkConfig}, utils::Timer};
+use crate::trainer::config::{mutation::GenomeMutationProbablities, network_config::NetworkConfig};
 use super::{activation::NetworkActivations, connection_gene::ConnectionGene, node_gene::{NodeGene, NodeGeneType}};
 
 /* Constants */
@@ -280,7 +280,7 @@ impl NeatNetwork {
         let total: usize = probabilities.iter().map(|e| e.0).sum();
         let random_number = rng.gen_range(0..total);
         let mut cumulative = 0;
-        for (index, &(probability, func)) in probabilities.iter().enumerate() {
+        for &(probability, func) in probabilities.iter() {
             cumulative += probability;
             if random_number < cumulative {
                 (func)(self);
@@ -547,7 +547,7 @@ impl NeatNetwork {
             .iter().map(|e| e.activation()).collect();
     
         // Apply output activation
-        outputs.iter().enumerate().map(|(i, e)| self.activations.output.run(&outputs, i)).collect()
+        (0..outputs.len()).map(|i| self.activations.output.run(&outputs, i)).collect()
     }
 
     /// The degree of a node is the amount of weights which are connected to it. And the
@@ -637,7 +637,7 @@ impl NeatNetwork {
         match bincode::serialize(self) {
             Ok(e) => {
                 match std::fs::write(path, e) {
-                    Ok(e) => (),
+                    Ok(_) => (),
                     Err(e) => {
                         println!("Cant write to {path}");
                         println!("{e:?}");

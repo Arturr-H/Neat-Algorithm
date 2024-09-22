@@ -21,18 +21,9 @@ pub enum Chain {
 }
 
 impl StopCondition {
-    pub fn after_generations(generations: usize) -> StopCondition {
+    pub fn after(after: StopConditionType) -> StopCondition {
         StopCondition {
-            conditions: vec![(Chain::Or, 
-                StopConditionType::GenerationsReached(generations)
-            )]
-        }
-    }
-    pub fn after_fitness_reached(fitness: f32) -> StopCondition {
-        StopCondition {
-            conditions: vec![(Chain::Or, 
-                StopConditionType::FitnessReached(fitness)
-            )]
+            conditions: vec![(Chain::Or, after)]
         }
     }
 

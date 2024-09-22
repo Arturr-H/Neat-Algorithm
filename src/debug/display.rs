@@ -3,12 +3,12 @@ use core::f32;
 use std::collections::HashMap;
 use eframe::{egui::{self, pos2, Align2, Color32, FontId, Key, Painter, Pos2, Rect}, emath::Rot2, epaint::PathStroke};
 use rand_distr::num_traits::Signed;
-use crate::{neural_network::{connection_gene::ConnectionGene, network::{NeatNetwork, AVERAGE_FITNESS_WINDOW_SIZE}, node_gene::{NodeGene, NodeGeneType}}, trainer::evolution::Evolution, utils::get_unix_time};
+use crate::{neural_network::{connection_gene::ConnectionGene, network::{NeatNetwork, AVERAGE_FITNESS_WINDOW_SIZE}, node_gene::{NodeGene, NodeGeneType}}, snake, snake_with_tail, trainer::evolution::Evolution, utils::get_unix_time};
 
 /* Constants */
 const NODE_SIZE: f32 = 5.;
 const AVERAGE_FITNESS_LEN_GRAPH: usize = 50;
-
+const DRAW_GRAPH_NODE_EACH_NTH_GEN: usize = 50;
 struct DrawContext {
     evolution: Evolution,
     species_index: usize,
@@ -31,7 +31,11 @@ struct DrawContext {
     /// How many times we call `generation` per frame
     /// when in speed gen
     gens_per_frame: usize,
-    show_disabled: bool
+    show_disabled: bool,
+
+    /// For increasing performance, don't draw most things
+    hide_all: bool,
+    graph_fitnesses: f32
 }
 pub fn start_debug_display(evolution: Evolution) -> () {
     let options = eframe::NativeOptions::default();
@@ -50,7 +54,9 @@ pub fn start_debug_display(evolution: Evolution) -> () {
             ms_delay: 0,
             average_fitnesses: [0.0; AVERAGE_FITNESS_LEN_GRAPH],
             gens_per_frame: 1,
-            show_disabled: true
+            show_disabled: true,
+            hide_all: false,
+            graph_fitnesses: 0.,
         }))),
     ).unwrap();
 }
@@ -62,7 +68,6 @@ impl eframe::App for DrawContext {
             let viewport_rect = ctx.input(|i: &egui::InputState| i.screen_rect());
             let (w, h) = (viewport_rect.width(), viewport_rect.height() - self.tab_height);
             let mut reset = false;
-            let mut generated_this_frame = false;
 
             ctx.input(|i| {
                 if !i.raw.events.is_empty() {
@@ -79,19 +84,30 @@ impl eframe::App for DrawContext {
             if self.speed_gen {
                 let new_time = get_unix_time();
                 self.ms_delay = new_time - self.previous_gen;
-                generated_this_frame = true;
                 self.previous_gen = new_time;
 
                 for _ in 0..self.gens_per_frame {
                     if self.evolution.generation() {
                         self.speed_gen = false;
                     };
+
+                    self.graph_fitnesses += self.evolution.average_fitness();
+                    if self.evolution.get_generation() % DRAW_GRAPH_NODE_EACH_NTH_GEN == 0 {
+                        self.average_fitnesses.rotate_left(1);
+                        self.average_fitnesses[AVERAGE_FITNESS_LEN_GRAPH - 1] = self.graph_fitnesses / DRAW_GRAPH_NODE_EACH_NTH_GEN as f32;
+                        self.graph_fitnesses = 0.;
+                    }
                 }
                 ctx.request_repaint();
             }
             if ctx.input(|i| i.key_pressed(Key::Space)) {
-                generated_this_frame = true;
                 self.evolution.generation();
+                self.graph_fitnesses += self.evolution.average_fitness();
+                if self.evolution.get_generation() % DRAW_GRAPH_NODE_EACH_NTH_GEN == 0 {
+                    self.average_fitnesses.rotate_left(1);
+                    self.average_fitnesses[AVERAGE_FITNESS_LEN_GRAPH - 1] = self.graph_fitnesses / DRAW_GRAPH_NODE_EACH_NTH_GEN as f32;
+                    self.graph_fitnesses = 0.;
+                }
                 reset = true;
             }else if ctx.input(|i| i.key_pressed(Key::ArrowLeft)) {
                 self.species_index = self.species_index.checked_sub(1).unwrap_or(0);
@@ -111,6 +127,13 @@ impl eframe::App for DrawContext {
                 self.previous_gen = get_unix_time();
             }else if ctx.input(|i| i.key_pressed(Key::H)) {
                 self.show_disabled = !self.show_disabled;
+            }else if ctx.input(|i| i.key_pressed(Key::G)) {
+                self.hide_all = !self.hide_all;
+            }else if ctx.input(|i| i.key_pressed(Key::Backspace)) {
+                self.save_name = self.save_name.as_ref().map(|e| match e.char_indices().next_back() {
+                    Some((i, _)) => e[..i].to_string(),
+                    None => e.to_string(),
+                })
             }
             else if ctx.input(|i| i.key_released(Key::Num1)) { self.gens_per_frame = 1 }
             else if ctx.input(|i| i.key_released(Key::Num2)) { self.gens_per_frame = 2 }
@@ -131,7 +154,7 @@ impl eframe::App for DrawContext {
                 // Find the best network, go through all species and networks
                 for (species_index, species) in self.evolution.species().iter().enumerate() {
                     for (network_index, network) in species.networks().iter().enumerate() {
-                        let fitness = network.average_fitness();
+                        let fitness = network.previous_average_fitness();
                         if fitness > max_fitness {
                             max_fitness = fitness;
                             best_network = (species_index, network_index);
@@ -145,6 +168,8 @@ impl eframe::App for DrawContext {
 
             draw_top_tab(&self, ctx, _frame, painter);
             draw_bottom_tab(&self, ctx, _frame, painter);
+
+            if self.hide_all { return }
 
             let cell_width = w / cols as f32;
             let cell_height = (h - self.tab_height * 2.) / rows as f32;
@@ -199,6 +224,10 @@ impl eframe::App for DrawContext {
 
                     if hovering && double_clicked {
                         self.focusing = Some(index);
+                        let mut c = network.clone();
+                        std::thread::spawn(move || {
+                            snake_with_tail(&mut c, true);
+                        });
                     }else if hovering && clicked {
                         println!("==== {:?} =====", self.evolution.species()[self.species_index].get_name());
                         println!("topology sorted {:?}", network.topological_sort());
@@ -211,7 +240,11 @@ impl eframe::App for DrawContext {
                             min: coordinate.into(),
                             max: pos2(coordinate.0 + cell_width, coordinate.1 + cell_height)
                         },
-                        0.0, if hovering {Color32::from_rgba_unmultiplied(255, 255, 255, 1)} else {Color32::TRANSPARENT}
+                        0.0, if hovering {
+                            Color32::from_rgba_unmultiplied(255, 255, 255, 1)
+                        } else {
+                            Color32::TRANSPARENT
+                        }
                     );
                     if let Some(info) = draw_network(self.focusing, coordinate, network, cell_width, cell_height, padding, painter, pos, self.show_disabled) {
                         self.info = Some(info);
@@ -219,10 +252,6 @@ impl eframe::App for DrawContext {
                 }
             }
 
-            if generated_this_frame {
-                self.average_fitnesses.rotate_left(1);
-                self.average_fitnesses[AVERAGE_FITNESS_LEN_GRAPH - 1] = self.evolution.average_fitness();
-            }
             draw_fitness_graph(w, h, self.tab_height, &self.average_fitnesses, painter);
         });
     }
@@ -245,7 +274,7 @@ fn draw_top_tab(draw_ctx: &DrawContext, ctx: &egui::Context, _frame: &mut eframe
         .species().iter()
         .map(|specie| {
             let average_fitness = specie
-                .previous_average_score();
+                .average_fitness();
 
             if average_fitness < min_fitness {
                 min_fitness = average_fitness;
@@ -260,13 +289,13 @@ fn draw_top_tab(draw_ctx: &DrawContext, ctx: &egui::Context, _frame: &mut eframe
     for (index, species) in draw_ctx.evolution.species().iter().enumerate() {
         let x = (index as f32) * tab_w - draw_ctx.species_index as f32 * tab_w + w / 2. - tab_w / 2.;
 
-        if species.previous_average_score() == min_fitness {
+        if species.average_fitness() == min_fitness {
             painter.rect_filled(
                 Rect { min: pos2(x, 0.), max: pos2(x + tab_w, tab_h) },
                 0.0,
                 Color32::from_rgba_unmultiplied(255, 10, 10, 15)
             );
-        }else if species.previous_average_score() >= max_fitness - (max_fitness - min_fitness) * 0.1 {
+        }else if species.average_fitness() >= max_fitness - (max_fitness - min_fitness) * 0.1 {
             painter.rect_filled(
                 Rect { min: pos2(x, 0.), max: pos2(x + tab_w, tab_h) },
                 0.0,
@@ -291,7 +320,7 @@ fn draw_top_tab(draw_ctx: &DrawContext, ctx: &egui::Context, _frame: &mut eframe
         );
         painter.text(
             pos2(x + tab_w / 2., tab_h / 2. + 4.), Align2::CENTER_CENTER,
-            format!("{:.3}", species.previous_average_score()),
+            format!("{:.3}", species.average_fitness()),
             font,
             Color32::WHITE
         );
@@ -340,7 +369,7 @@ fn draw_bottom_tab(draw_ctx: &DrawContext, ctx: &egui::Context, _frame: &mut efr
     }else {
         painter.text(
             pos2(tab_h / 2., h - tab_h/2.), Align2::LEFT_CENTER,
-            format!("{}g/f {:<24} | ms: {} | Fit: {:.4} | Generation: {:<8}", draw_ctx.gens_per_frame, species.get_name(), draw_ctx.ms_delay, format!("{:<8}", species.previous_average_score()), draw_ctx.evolution.get_generation()),
+            format!("{}g/f {:<24} | ms: {} | Fit: {:.4} | Generation: {:<8}", draw_ctx.gens_per_frame, species.get_name(), draw_ctx.ms_delay, format!("{:<8}", species.average_fitness()), draw_ctx.evolution.get_generation()),
             FontId::new(20., egui::FontFamily::Monospace),
             Color32::WHITE
         );
@@ -435,7 +464,6 @@ fn draw_fitness_graph(w: f32, h: f32, tab_height: f32, average_fitnesses: &[f32]
     let value_range = max_fitness - min_fitness;
 
     /* Holy what a name */
-    let background_helper_lines_per_tab_height = 10;
     let amount_of_points = average_fitnesses.len();
     let step_size_x = w / (amount_of_points - 1) as f32;
     
@@ -478,7 +506,7 @@ fn draw_network(
     let mut return_node = None;
     painter.text(
         pos2(coordinate.0 + cell_width / 2., coordinate.1 + cell_height - cell_height * 0.1),
-        Align2::CENTER_CENTER, format!("avg{}={:.3}", AVERAGE_FITNESS_WINDOW_SIZE, network.average_fitness()),
+        Align2::CENTER_CENTER, format!("avg{}={:.3}", AVERAGE_FITNESS_WINDOW_SIZE, network.previous_average_fitness()),
         FontId::default(), Color32::GRAY
     );
 
@@ -488,7 +516,7 @@ fn draw_network(
         // it to a u32
         let int = unsafe { std::mem::transmute::<f32, u32>(node_gene.x()) };
         match positions.get(&int) {
-            Some(e) => {
+            Some(_) => {
                 positions.get_mut(&int).unwrap().push(index);
             },
             None => {

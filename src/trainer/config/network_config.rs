@@ -1,4 +1,4 @@
-use super::{mutation::{GenomeMutationProbablities, WeightChangeProbablities}, stop_condition::StopCondition};
+use super::mutation::{GenomeMutationProbablities, WeightChangeProbablities};
 
 #[derive(Default, Clone)]
 pub struct NetworkConfig {
