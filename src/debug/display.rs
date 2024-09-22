@@ -362,7 +362,7 @@ fn draw_bottom_tab(draw_ctx: &DrawContext, ctx: &egui::Context, _frame: &mut efr
         };
         painter.text(
             pos2(tab_h / 2., h - tab_h/2.), Align2::LEFT_CENTER,
-            format!("::{} w_idx->self{:?} id({}) bias({})", type_name, info.incoming_connection_indexes(), info.id(), info.bias()),
+            format!("::{} w_idx->self{:?} bias({})", type_name, info.incoming_connection_indexes(), info.bias()),
             FontId::new(20., egui::FontFamily::Monospace),
             Color32::WHITE
         );

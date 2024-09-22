@@ -10,10 +10,6 @@ pub enum NodeGeneType {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct NodeGene {
-    /// The ID of this node gene, also the index
-    /// of the array which this node is located in
-    id: usize,
-
     /// Biases are stored inside of each node gene
     /// instead of per layers, because NEAT networks
     /// don't really have hidden layers
@@ -36,9 +32,8 @@ pub struct NodeGene {
 }
 
 impl NodeGene {
-    pub fn new(index: usize, node_type: NodeGeneType, x: f32) -> Self {
+    pub fn new(node_type: NodeGeneType, x: f32) -> Self {
         Self {
-            id: index,
             bias: 0.1,
             node_type,
             activation: 0.,
@@ -49,7 +44,6 @@ impl NodeGene {
 
     // Getters
     pub fn x(&self) -> f32 { self.x }
-    pub fn id(&self) -> usize { self.id }
     pub fn bias(&self) -> f32 { self.bias }
     pub fn node_type(&self) -> NodeGeneType { self.node_type }
     pub fn activation(&self) -> f32 { self.activation }
@@ -75,16 +69,16 @@ impl NodeGene {
     /// Display all info about this gene
     pub fn verbose_debug(&self) -> String {
         format!(
-            "Incoming: {:?}, Bias: {}, Activation: {}, Id: {}, Type: {:?}",
+            "Incoming: {:?}, Bias: {}, Activation: {}, Type: {:?}",
             self.incoming_connection_indexes, self.bias,
-            self.activation, self.id, self.node_type
+            self.activation, self.node_type
         )
     }
 }
 
 impl std::fmt::Debug for NodeGene {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Node({:?}{} ({:.3}))", self.node_type, self.id, self.activation)
+        write!(f, "Node({:?} ({:.3}))", self.node_type, self.activation)
     }
 }
 impl std::fmt::Debug for NodeGeneType {

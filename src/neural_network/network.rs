@@ -98,11 +98,11 @@ impl NeatNetwork {
     ) -> Self {
         // Create node genes
         let mut node_genes = Vec::with_capacity(input + output);
-        for i in 0..input {
-            node_genes.push(NodeGene::new(i, NodeGeneType::Input, 0.0));
+        for _ in 0..input {
+            node_genes.push(NodeGene::new(NodeGeneType::Input, 0.0));
         }
-        for i in input..(input+output) {
-            node_genes.push(NodeGene::new(i, NodeGeneType::Output, 1.0));
+        for _ in input..(input+output) {
+            node_genes.push(NodeGene::new(NodeGeneType::Output, 1.0));
         }
 
         // Create connections genes
@@ -218,7 +218,7 @@ impl NeatNetwork {
                 NodeGeneType::Regular => 0.5,
                 NodeGeneType::Output => 1.0,
             };
-            let mut node_gene = NodeGene::new(i, node_type, x);
+            let mut node_gene = NodeGene::new(node_type, x);
             match incoming.get(&i) {
                 Some(indexes) => {
                     node_gene.set_incoming_indexes(indexes.clone());
@@ -326,7 +326,6 @@ impl NeatNetwork {
 
         gene.set_enabled(false);
         self.node_genes.push(NodeGene::new(
-            self.node_gene_index,
             NodeGeneType::Regular,
             new_x
         ));
