@@ -3,7 +3,7 @@ use core::f32;
 use std::collections::HashMap;
 use eframe::{egui::{self, pos2, Align2, Color32, FontId, Key, Painter, Pos2, Rect}, emath::Rot2, epaint::PathStroke};
 use rand_distr::num_traits::Signed;
-use crate::{neural_network::{connection_gene::ConnectionGene, network::{NeatNetwork, AVERAGE_FITNESS_WINDOW_SIZE}, node_gene::{NodeGene, NodeGeneType}}, snake, snake_with_tail, trainer::evolution::Evolution, utils::get_unix_time};
+use crate::{neural_network::{connection_gene::ConnectionGene, network::{NeatNetwork, AVERAGE_FITNESS_WINDOW_SIZE}, node_gene::{NodeGene, NodeGeneType}}, snake, trainer::evolution::Evolution, utils::get_unix_time};
 
 /* Constants */
 const NODE_SIZE: f32 = 5.;
@@ -226,7 +226,7 @@ impl eframe::App for DrawContext {
                         self.focusing = Some(index);
                         let mut c = network.clone();
                         std::thread::spawn(move || {
-                            snake_with_tail(&mut c, true);
+                            snake(&mut c, true);
                         });
                     }else if hovering && clicked {
                         println!("==== {:?} =====", self.evolution.species()[self.species_index].get_name());

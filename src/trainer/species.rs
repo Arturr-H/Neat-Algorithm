@@ -332,14 +332,10 @@ impl Species {
 
     fn generate_name() -> String {
         let prefixes = vec![
-            "Quantum", "Sigma", "Big", "Fat", "Ugly", "Hawk", "Fentanyl overdosing",
-            "Quandale", "Strong", "Obese", "Plus sized", "Drug addicted",
-            "Child abusing", "Nerdy", "Holy", "Gay", "Fat ass", "Bitch ass", "Dumb",
-            "Cute", "Petite", "Optimum", "Street"
+            "Quantum", "Alpha", "Beta", "Sigma", "Strong", "Obese", "Optimum", "Quality"
         ];
         let suffixes = vec![
-            "machine", "motor", "engine", "brain", "tuah", "ass", "combustion engine", "shitter", "dumpster",
-            "iron ingot", "AI", "network", "genome",
+            "machine", "motor", "engine", "brain", "combustion engine", "dumpster", "AI", "network", "genome",
         ];
 
         let mut rng = thread_rng();
