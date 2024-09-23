@@ -16,7 +16,7 @@ use rayon::{iter::ParallelIterator, slice::ParallelSliceMut};
 use trainer::{config::{mutation::{GenomeMutationProbablities, WeightChangeProbablities}, stop_condition::{StopCondition, StopConditionType}}, evolution::{self, Evolution, EvolutionBuilder}};
 use trainer::species::Species;
 use rand::{thread_rng, Rng};
-use utils::find_max_index;
+use utils::{find_max_index, Timer};
 
 fn main() -> () {
     let mut _evolution = Evolution::new()
@@ -38,53 +38,18 @@ fn main() -> () {
             multiplication_large: 5,
             change_sign: 3
         })
-        .replace_worst_every_nth_gen(Some(1000))
+        .replace_worst_every_nth_gen(Some(600))
         // .par_chunks_size(3)
         .with_hidden_activation(Activation::LeakyRelu)
         .with_output_activation(Activation::Sigmoid)
         .with_stop_condition(StopCondition::after(StopConditionType::FitnessReached(1000.)))
-        .set_fitness_function(|e| snake_game(e, false))
+        .set_fitness_function(|e| SnakeGame::score_game(e, 800, false))
         .build();
-    
-    
-    // let mut net = NeatNetwork::retrieve("/Users/artur/Desktop/snakemaster3");
-    // snake_game(&mut net, true);
 
+    
+    // let mut network = NeatNetwork::retrieve("D:\\Programmering\\hej");
+    // SnakeGame::score_game(&mut network, 10000, false);
+    
     start_debug_display(_evolution);
 }
 
-pub fn snake_game(network: &mut NeatNetwork, log: bool) -> f32 {
-    let mut moves = 0;
-    let mut game = SnakeGame::new();
-
-    // Simulate the game loop (for testing)
-    while !game.is_game_over {
-        game.update();
-        if log {
-            game.display();
-            std::thread::sleep(Duration::from_millis(10));
-        }
-        
-        let apple_pos = vec![game.apple.x as f32 / 7., game.apple.y as f32 / 7.];
-        let snake_head_pos = vec![game.snake.first().unwrap().x as f32 / 7., game.snake.first().unwrap().y as f32 / 7.];
-        let proximity = game.get_proximity().to_vec();
-        let input = Vec::new().into_iter()
-            .chain(snake_head_pos)
-            .chain(apple_pos)
-            .chain(proximity)
-            .collect();
-
-        let decision = find_max_index(&network.calculate_output(input)) as u8;
-        /* I am lazy */
-        game.set_direction(unsafe {
-            std::mem::transmute::<u8, Direction>(decision)
-        });
-
-        moves += 1;
-        if moves > 10000 {
-            break;
-        }
-    }
-
-    game.score
-}

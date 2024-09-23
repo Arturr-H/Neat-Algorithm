@@ -1,6 +1,10 @@
+use std::time::Duration;
+
 use rand::{seq::SliceRandom, Rng};
 
-const GRID_SIZE: usize = 8;
+use crate::{neural_network::network::NeatNetwork, utils::find_max_index};
+
+const GRID_SIZE: usize = 6;
 const INITIAL_SNAKE_LENGTH: usize = 3;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -44,6 +48,42 @@ impl SnakeGame {
             apple_worth: 1.
         }
     }
+
+    pub fn score_game(network: &mut NeatNetwork, max_moves: usize, log: bool) -> f32 {
+        let mut moves = 0;
+        let mut game = Self::new();
+    
+        // Simulate the game loop (for testing)
+        while !game.is_game_over {
+            game.update();
+            if log {
+                game.display();
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            
+            let apple_pos = vec![game.apple.x as f32, game.apple.y as f32];
+            let snake_head_pos = vec![game.snake.first().unwrap().x as f32, game.snake.first().unwrap().y as f32];
+            let proximity = game.get_proximity().to_vec();
+            let input = Vec::new().into_iter()
+                .chain(snake_head_pos)
+                .chain(apple_pos)
+                .chain(proximity)
+                .collect();
+    
+            let decision = find_max_index(&network.calculate_output(input)) as u8;
+            /* I am lazy */
+            game.set_direction(unsafe {
+                std::mem::transmute::<u8, Direction>(decision)
+            });
+    
+            moves += 1;
+            if moves > max_moves {
+                break;
+            }
+        }
+    
+        game.score
+    }    
 
     pub fn generate_apple(snake: &Vec<Position>) -> Option<Position> {
         let mut rng = rand::thread_rng();
