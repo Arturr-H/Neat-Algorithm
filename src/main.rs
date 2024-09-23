@@ -16,7 +16,7 @@ use rayon::{iter::ParallelIterator, slice::ParallelSliceMut};
 use trainer::{config::{mutation::{GenomeMutationProbablities, WeightChangeProbablities}, stop_condition::{StopCondition, StopConditionType}}, evolution::{self, Evolution, EvolutionBuilder}};
 use trainer::species::Species;
 use rand::{thread_rng, Rng};
-use utils::find_max_index;
+use utils::{find_max_index, Timer};
 
 fn main() -> () {
     let mut _evolution = Evolution::new()
