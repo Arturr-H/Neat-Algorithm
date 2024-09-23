@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::{Arc, Mutex}};
 use rayon::{iter::ParallelIterator, slice::ParallelSliceMut};
 
 use crate::neural_network::{activation::{Activation, NetworkActivations}, network::NeatNetwork};
-use super::{config::{mutation::{GenomeMutationProbablities, WeightChangeProbablities}, network_config::NetworkConfig, stop_condition::StopCondition}, species::Species};
+use super::{config::{mutation::{GenomeMutationProbablities, WeightChangeProbablities}, network_config::NetworkConfig, stop_condition::StopCondition}, species::{Species, SPECIES_AVERAGE_SCORE_WINDOW_SIZE}};
 
 /// How many times we mutate the representative before cloning
 /// and creating a distinct species
@@ -229,10 +229,10 @@ impl Evolution {
                 // that all genomes in this species will have correct previous
                 // fitnesses.
                 //
-                // We find do mod by SPECIES_REPRESENTATIVE_MUTATIONS to wait
+                // We find do mod by SPECIES_AVERAGE_SCORE_WINDOW_SIZE to wait
                 // for the offspring to fully "fill up" its fitness window which
                 // leads to better fitness representation
-                if self.generation % SPECIES_REPRESENTATIVE_MUTATIONS == 0 {
+                if self.generation % SPECIES_AVERAGE_SCORE_WINDOW_SIZE == 0 {
                     species.crossover(self.fitness_function);
                 }
 
