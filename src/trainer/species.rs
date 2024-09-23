@@ -4,7 +4,7 @@ use rand::{thread_rng, Rng};
 use crate::neural_network::{connection_gene::ConnectionGene, network::NeatNetwork};
 
 /* Constants */
-const SPECIES_AVERAGE_SCORE_WINDOW_SIZE: usize = 25;
+pub const SPECIES_AVERAGE_SCORE_WINDOW_SIZE: usize = 25;
 
 pub struct Species {
     /// The representative of a species is a network just like the other
