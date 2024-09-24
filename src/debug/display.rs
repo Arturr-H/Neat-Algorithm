@@ -1,16 +1,16 @@
 /* Imports */
 use core::f32;
 use std::collections::HashMap;
-use eframe::{egui::{self, pos2, Align2, Color32, FontId, Key, Painter, Pos2, Rect}, emath::Rot2, epaint::PathStroke};
+use eframe::{egui::{self, pos2, Align2, Color32, FontId, Key, Painter, Pos2, Rect}, epaint::PathStroke};
 use rand_distr::num_traits::Signed;
-use crate::{neural_network::{connection_gene::ConnectionGene, network::{NeatNetwork, AVERAGE_FITNESS_WINDOW_SIZE}, node_gene::{NodeGene, NodeGeneType}}, snake_game, trainer::evolution::Evolution, utils::get_unix_time};
+use crate::{neural_network::{network::{NeatNetwork, AVERAGE_FITNESS_WINDOW_SIZE}, node_gene::{NodeGene, NodeGeneType}}, trainer::{evolution::Evolution, fitness::FitnessEvaluator}, utils::get_unix_time};
 
 /* Constants */
 const NODE_SIZE: f32 = 5.;
 const AVERAGE_FITNESS_LEN_GRAPH: usize = 50;
 const DRAW_GRAPH_NODE_EACH_NTH_GEN: usize = 50;
-struct DrawContext {
-    evolution: Evolution,
+struct DrawContext<T: FitnessEvaluator + Send + Sync> {
+    evolution: Evolution<T>,
     species_index: usize,
     tab_height: f32,
 
@@ -37,7 +37,7 @@ struct DrawContext {
     hide_all: bool,
     graph_fitnesses: f32
 }
-pub fn start_debug_display(evolution: Evolution) -> () {
+pub fn start_debug_display<T: FitnessEvaluator + Send + Sync + 'static>(evolution: Evolution<T>) -> () {
     let options = eframe::NativeOptions::default();
     let _ = eframe::run_native(
         "Neat Network",
@@ -61,7 +61,7 @@ pub fn start_debug_display(evolution: Evolution) -> () {
     ).unwrap();
 }
 
-impl eframe::App for DrawContext {
+impl<T: FitnessEvaluator + Send + Sync> eframe::App for DrawContext<T> {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
             let painter = ui.painter();
@@ -146,7 +146,7 @@ impl eframe::App for DrawContext {
             let networks = self.evolution.species()[self.species_index].networks();
             let cols = (networks.len() as f32).sqrt() as usize; // Number of columns
             let rows = (networks.len() + cols - 1) / cols;    // Number of rows
-            let (mut min_fitness, mut max_fitness) = (f32::MAX, f32::MIN);
+            let (mut _min_fitness, mut max_fitness) = (f32::MAX, f32::MIN);
 
             if ctx.input(|i| i.key_pressed(Key::F)) {
                 let mut best_network = (0, 0); // (species_index, network_index)
@@ -224,10 +224,10 @@ impl eframe::App for DrawContext {
 
                     if hovering && double_clicked {
                         self.focusing = Some(index);
-                        let mut c = network.clone();
-                        std::thread::spawn(move || {
-                            snake_game(&mut c, true);
-                        });
+                        // let mut c = network.clone();
+                        // std::thread::spawn(move || {
+                        //     // snake_game(&mut c, true);
+                        // });
                     }else if hovering && clicked {
                         println!("==== {:?} =====", self.evolution.species()[self.species_index].get_name());
                         println!("topology sorted {:?}", network.topological_sort());
@@ -257,8 +257,7 @@ impl eframe::App for DrawContext {
     }
 }
 
-fn draw_top_tab(draw_ctx: &DrawContext, ctx: &egui::Context, _frame: &mut eframe::Frame, painter: &Painter) -> () {
-    let mut x = 0.0;
+fn draw_top_tab<T: FitnessEvaluator + Send + Sync>(draw_ctx: &DrawContext<T>, ctx: &egui::Context, _frame: &mut eframe::Frame, painter: &Painter) -> () {
     let tab_w = 80.;
     let tab_h = draw_ctx.tab_height;
     let viewport_rect = ctx.input(|i: &egui::InputState| i.screen_rect());
@@ -270,7 +269,7 @@ fn draw_top_tab(draw_ctx: &DrawContext, ctx: &egui::Context, _frame: &mut eframe
     );
 
     let (mut min_fitness, mut max_fitness) = (f32::MAX, f32::MIN);
-    let average = draw_ctx.evolution
+    let _average = draw_ctx.evolution
         .species().iter()
         .map(|specie| {
             let average_fitness = specie
@@ -341,9 +340,9 @@ fn draw_top_tab(draw_ctx: &DrawContext, ctx: &egui::Context, _frame: &mut eframe
     }
 }
 
-fn draw_bottom_tab(draw_ctx: &DrawContext, ctx: &egui::Context, _frame: &mut eframe::Frame, painter: &Painter) -> () {
+fn draw_bottom_tab<T: FitnessEvaluator + Send + Sync>(draw_ctx: &DrawContext<T>, ctx: &egui::Context, _frame: &mut eframe::Frame, painter: &Painter) -> () {
     let viewport_rect = ctx.input(|i: &egui::InputState| i.screen_rect());
-    let (w, h) = (viewport_rect.width(), viewport_rect.height());
+    let (_w, h) = (viewport_rect.width(), viewport_rect.height());
     let tab_h = draw_ctx.tab_height;
     let species = &draw_ctx.evolution.species()[draw_ctx.species_index];
 

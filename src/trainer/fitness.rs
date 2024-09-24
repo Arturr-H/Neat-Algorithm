@@ -1,5 +1,5 @@
 /* Imports */
-use crate::neural_network::network::NeatNetwork;
+use super::super::neural_network::network::NeatNetwork;
 
 /// Any struct passed as a fitness evaluator into the
 /// `Evolution` struct needs to implement this trait.

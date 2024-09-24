@@ -1,8 +1,6 @@
 use std::time::Duration;
-
-use rand::{seq::SliceRandom, Rng};
-
-use crate::{neural_network::network::NeatNetwork, utils::find_max_index};
+use rand::seq::SliceRandom;
+use crate::{neural_network::network::NeatNetwork, trainer::fitness::FitnessEvaluator, utils::find_max_index};
 
 const GRID_SIZE: usize = 6;
 const INITIAL_SNAKE_LENGTH: usize = 3;
@@ -200,5 +198,13 @@ impl SnakeGame {
         }
 
         proximity
+    }
+}
+
+#[derive(Clone)]
+pub struct SnakeGameEvaluator;
+impl FitnessEvaluator for SnakeGameEvaluator {
+    fn run(&mut self, network: &mut NeatNetwork) -> f32 {
+        SnakeGame::score_game(network, 500, false)
     }
 }

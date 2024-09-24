@@ -1,9 +1,6 @@
 use core::f32;
-
 use eframe::egui::{pos2, CentralPanel, Color32, Context, InputState, Key, Painter};
-use rand::{thread_rng, Rng};
 use crate::neural_network::network::NeatNetwork;
-
 use crate::utils::find_max_index;
 
 pub struct Pendulum {
@@ -71,7 +68,6 @@ impl Pendulum {
             Box::new(|_cc| Ok(Box::new(DrawContext {
                 pend: self,
                 network,
-                moves: 0
             }))),
         ).unwrap();
     }
@@ -111,7 +107,6 @@ pub mod vector {
 struct DrawContext {
     pend: Pendulum,
     network: NeatNetwork,
-    moves: usize,
 }
 impl eframe::App for DrawContext {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
@@ -163,7 +158,6 @@ impl eframe::App for DrawContext {
 }
 
 pub fn score_pendulum(network: &mut NeatNetwork) -> f32 {
-    let mut score = 0.0;
     let mut pend = Pendulum::default();
     pend.set_origin(vector::Vector { x: 200., y: 200. });
     let mut tries = 0;
