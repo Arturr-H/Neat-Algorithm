@@ -41,13 +41,17 @@ impl Species {
     pub fn new(
         global_innovation_number: Arc<Mutex<usize>>,
         global_occupied_connections: Arc<Mutex<HashMap<(usize, usize), usize>>>,
-        representative: NeatNetwork,
+        mut representative: NeatNetwork,
         size: usize,
         index: usize,
+        mutate_representative: bool
     ) -> Self {
         assert!(size > 0, "Size must be at least 1 to fit representative");
         let mut networks: Vec<NeatNetwork> = Vec::with_capacity(size);
-        
+        if mutate_representative {
+            representative.mutate();
+        }
+
         networks.push(representative.clone());
         for _ in 0..size - 1 {
             let mut net = representative.clone();

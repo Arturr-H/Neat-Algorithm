@@ -5,9 +5,6 @@ use rayon::{iter::ParallelIterator, slice::ParallelSliceMut};
 use crate::neural_network::{activation::{Activation, NetworkActivations}, network::NeatNetwork};
 use super::{config::{mutation::{GenomeMutationProbablities, WeightChangeProbablities}, network_config::NetworkConfig, stop_condition::StopCondition}, species::{Species, SPECIES_AVERAGE_SCORE_WINDOW_SIZE}};
 
-/// How many times we mutate the representative before cloning
-/// and creating a distinct species
-const SPECIES_REPRESENTATIVE_MUTATIONS: usize = 20;
 const DEFAULT_SPECIES_SIZE: usize = 10;
 
 /// Struct to make a set amount of networks
@@ -177,7 +174,8 @@ impl EvolutionBuilder {
                 global_occupied_connections.clone(),
                 representative,
                 species_size,
-                i
+                i,
+                false
             ));
         }
 
@@ -281,7 +279,8 @@ impl Evolution {
             self.global_occupied_connections.clone(),
             best_network.clone(),
             self.species_size,
-            worst_species.1
+            worst_species.1,
+            true
         );
     }
 
