@@ -3,13 +3,13 @@ use std::{collections::HashMap, sync::{Arc, Mutex}};
 use rayon::{iter::ParallelIterator, slice::ParallelSliceMut};
 
 use crate::neural_network::{activation::{Activation, NetworkActivations}, network::NeatNetwork};
-use super::{config::{mutation::{GenomeMutationProbablities, WeightChangeProbablities}, network_config::NetworkConfig, stop_condition::StopCondition}, species::{Species, SPECIES_AVERAGE_SCORE_WINDOW_SIZE}};
+use super::{config::{mutation::{GenomeMutationProbablities, WeightChangeProbablities}, network_config::NetworkConfig, stop_condition::StopCondition}, fitness::FitnessEvaluator, species::{Species, SPECIES_AVERAGE_SCORE_WINDOW_SIZE}};
 
 const DEFAULT_SPECIES_SIZE: usize = 10;
 
 /// Struct to make a set amount of networks
 /// compete against eachother.
-pub struct EvolutionBuilder {
+pub struct EvolutionBuilder<F: FitnessEvaluator> {
     /// How many networks that are going to compete
     /// against eachother.
     batch_size: Option<usize>,
@@ -20,11 +20,8 @@ pub struct EvolutionBuilder {
     /// The amount of output neurons
     output_nodes: Option<usize>,
 
-    /// This function will run the network trough some test that
-    /// the network is trained to do. The function will return an
-    /// f32 which evaluates the performance of the network. Higher
-    /// return value => better performing network
-    fitness_function: Option<fn(&mut NeatNetwork) -> f32>,
+    // TODO: DOC COMMENT?
+    fitness_evaluator: Option<F>,
 
     /// How many networks (including representative) we should have
     /// in each species group (how many networks who compete against
@@ -44,10 +41,10 @@ pub struct EvolutionBuilder {
     par_chunks_size: usize,
 }
 
-pub struct Evolution {
+pub struct Evolution<F: FitnessEvaluator + Send + Sync> {
     /// All the diffrent networks that compete in groups
     species: Vec<Species>,
-    fitness_function: fn(&mut NeatNetwork) -> f32,
+    fitness_evaluator: Arc<Mutex<F>>,
     global_innovation_number: Arc<Mutex<usize>>,
     stop_condition: StopCondition,
     generation: usize,
@@ -67,13 +64,13 @@ pub struct Evolution {
     global_occupied_connections: Arc<Mutex<HashMap<(usize, usize), usize>>>,
 }
 
-impl EvolutionBuilder {
+impl<F: FitnessEvaluator + Send + Sync> EvolutionBuilder<F> {
     pub fn new() -> Self {
         Self {
             batch_size: None,
             output_nodes: None,
             input_nodes: None,
-            fitness_function: None,
+            fitness_evaluator: None,
             species_size: DEFAULT_SPECIES_SIZE,
             hidden_activation: Activation::LeakyRelu,
             output_activation: Activation::Sigmoid,
@@ -136,15 +133,15 @@ impl EvolutionBuilder {
     /// 
     /// ## WARNING
     /// Output NEEDS to be bigger than 0
-    pub fn set_fitness_function(&mut self, func: fn(&mut NeatNetwork) -> f32) -> &mut Self { self.fitness_function = Some(func); self }
+    pub fn set_fitness_evaluator(&mut self, eval: F) -> &mut Self { self.fitness_evaluator = Some(eval); self }
 
     /// Compile all set values and make this
     /// struct ready for evolution
-    pub fn build(&mut self) -> Evolution {
+    pub fn build(&mut self) -> Evolution<F> {
         assert!(self.batch_size.is_some(), "Batch is required for evolution");
         assert!(self.input_nodes.is_some(), "Input node amount is required for evolution");
         assert!(self.output_nodes.is_some(), "Output node amount is required for evolution");
-        assert!(self.fitness_function.is_some(), "Fitness function is required for evolution");
+        assert!(self.fitness_evaluator.is_some(), "Fitness evaluator is required for evolution");
         let batch_size = self.batch_size.unwrap();
         let input_nodes = self.input_nodes.unwrap();
         let output_nodes = self.output_nodes.unwrap();
@@ -181,7 +178,7 @@ impl EvolutionBuilder {
 
         Evolution {
             species,
-            fitness_function: self.fitness_function.unwrap(),
+            fitness_evaluator: Arc::new(Mutex::new(self.fitness_evaluator.clone().unwrap())),
             global_innovation_number,
             global_occupied_connections,
             stop_condition: self.stop_condition.clone(),
@@ -194,8 +191,8 @@ impl EvolutionBuilder {
 }
 
 
-impl Evolution {
-    pub fn new() -> EvolutionBuilder {
+impl<F: FitnessEvaluator + Send + Sync> Evolution<F> {
+    pub fn new() -> EvolutionBuilder<F> {
         EvolutionBuilder::new()
     }
 
@@ -213,8 +210,9 @@ impl Evolution {
         
         self.species.par_chunks_mut(self.par_chunks_size).for_each(|species_chunk| {
             for species in species_chunk {
-                // Cache fitness in each network
-                species.generate_fitness(self.fitness_function);
+                // Cache fitness in each network 
+                // TODO
+                species.generate_fitness(self.fitness_evaluator.clone());
                 
                 // Stop condition
                 let previous_average = species.average_fitness();
@@ -231,7 +229,8 @@ impl Evolution {
                 // for the offspring to fully "fill up" its fitness window which
                 // leads to better fitness representation
                 if self.generation % SPECIES_AVERAGE_SCORE_WINDOW_SIZE == 0 {
-                    species.crossover(self.fitness_function);
+                    // TODO
+                    // species.crossover(self.fitness_function);
                 }
 
                 // Mutate

@@ -2,7 +2,7 @@
 use std::{collections::{HashMap, HashSet}, fmt::Debug, iter, sync::{Arc, Mutex}};
 use rand::{thread_rng, Rng};
 use serde_derive::{Serialize, Deserialize};
-use crate::trainer::config::{mutation::GenomeMutationProbablities, network_config::NetworkConfig};
+use crate::trainer::{config::{mutation::GenomeMutationProbablities, network_config::NetworkConfig}, fitness::FitnessEvaluator};
 use super::{activation::NetworkActivations, connection_gene::ConnectionGene, node_gene::{NodeGene, NodeGeneType}};
 
 /* Constants */
@@ -717,9 +717,10 @@ impl NeatNetwork {
     }
 
     /// Store the fitness of the current network
-    pub fn evaluate_fitness(&mut self, fitness_func: fn(&mut Self) -> f32) -> () {
+    pub fn evaluate_fitness<F: FitnessEvaluator>(&mut self, fitness_evaluator: Arc<Mutex<F>>) -> () {
         self.topology_sort_cached = self.topological_sort().unwrap();
-        let score = (fitness_func)(self);
+        // let score = (fitness_func)(self);
+        let score = fitness_evaluator.lock().unwrap().run(self);
         self.previous_fitness = score;
 
         // Set new average

@@ -3,6 +3,8 @@ use std::{collections::HashMap, sync::{Arc, Mutex}};
 use rand::{thread_rng, Rng};
 use crate::neural_network::{connection_gene::ConnectionGene, network::NeatNetwork};
 
+use super::fitness::FitnessEvaluator;
+
 /* Constants */
 pub const SPECIES_AVERAGE_SCORE_WINDOW_SIZE: usize = 25;
 
@@ -99,7 +101,7 @@ impl Species {
     }
 
     /// Crossover two parents and insert offspring
-    pub fn crossover(&mut self, fitness_function: fn(&mut NeatNetwork) -> f32) -> () {
+    pub fn crossover<F: FitnessEvaluator>(&mut self, fitness_evaluator: Arc<Mutex<F>>) -> () {
         assert!(self.networks.len() > 1);
         let mut rng = thread_rng();
         let max_distance = 0.2;
@@ -163,7 +165,7 @@ impl Species {
         // TODO I dont know if we should be replacing the worst with offspring but hey
         let mut offspring = self.crossover_networks(networks[0].0, networks[1].0, *networks[0].1, *networks[1].1);
         if !NeatNetwork::has_cycle(offspring.local_occupied_connections().iter()) {
-            offspring.evaluate_fitness(fitness_function);
+            offspring.evaluate_fitness(fitness_evaluator);
 
             // Check docs of this method for explanation
             offspring.fill_average();
@@ -295,10 +297,10 @@ impl Species {
 
     /// Makes all networks in this species go through fitness
     /// function and store it for later use
-    pub fn generate_fitness(&mut self, fitness_function: fn(&mut NeatNetwork) -> f32) -> () {
+    pub fn generate_fitness<F: FitnessEvaluator>(&mut self, fitness_evaluator: Arc<Mutex<F>>) -> () {
         let mut fitness_this_gen = 0.0;
         for net in self.networks.iter_mut() {
-            net.evaluate_fitness(fitness_function);
+            net.evaluate_fitness(fitness_evaluator.clone());
             fitness_this_gen += net.average_fitness();
         }
         
