@@ -1,5 +1,5 @@
-use std::sync::Arc;
-use neat_algorithm::neural_network::{activation::{Activation, NetworkActivations}, connection_gene::ConnectionGene, network::NeatNetwork};
+use std::sync::{Arc, Mutex};
+use neat_algorithm::{neural_network::{activation::{Activation, NetworkActivations}, connection_gene::ConnectionGene, network::NeatNetwork}, trainer::fitness::FitnessEvaluator};
 
 #[test]
 fn initialize_default() -> () {
@@ -44,6 +44,14 @@ fn topology_sort() -> () {
 fn fitness() -> () {
     let activations = NetworkActivations::new(Activation::LeakyRelu, Activation::LeakyRelu);
     let mut net = NeatNetwork::new(1, 2, Arc::default(), Arc::default(), activations, Arc::default());
-    net.evaluate_fitness(|_| 1.);
+    #[derive(Clone)]
+    struct FitnessEval;
+    impl FitnessEvaluator for FitnessEval {
+        fn run(&mut self, _: &mut NeatNetwork) -> f32 {
+            1.
+        }
+    }
+
+    net.evaluate_fitness(Arc::new(Mutex::new(FitnessEval)));
     assert!(net.previous_fitness() == 1.);
 }
