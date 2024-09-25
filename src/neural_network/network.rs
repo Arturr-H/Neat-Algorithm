@@ -66,7 +66,12 @@ pub struct NeatNetwork {
 
     #[serde(skip)]
     network_config: Arc<NetworkConfig>,
-    topology_sort_cached: Vec<usize>
+
+    /// The previous sort of the topology
+    topology_sort_cached: Vec<usize>,
+
+    /// Determines wether we need to recache the `topology_sort_cached`
+    need_topology_resorted: bool
 }
 
 impl NeatNetwork {
@@ -158,7 +163,8 @@ impl NeatNetwork {
             network_config: network_config.clone(),
 
             // TODO: Should we initialize with sorted or not? I think not
-            topology_sort_cached: Vec::new()
+            topology_sort_cached: Vec::new(),
+            need_topology_resorted: true,
         }
     }
 
@@ -247,7 +253,8 @@ impl NeatNetwork {
             network_config: network_config.clone(),
 
             // TODO: Should we initialize with sorted or not? I think not
-            topology_sort_cached: Vec::new()
+            topology_sort_cached: Vec::new(),
+            need_topology_resorted: true,
         }
     }
 
@@ -360,10 +367,12 @@ impl NeatNetwork {
         if let Some(input) = input_connection {
             self.connection_genes.push(input);
             self.node_genes[self.node_gene_index].register_new_incoming(self.connection_genes.len() - 2);
+            self.need_topology_resorted = true;
         };
         if let Some(output) = output_connection {
             self.connection_genes.push(output);
             self.node_genes[gene_node_out].register_new_incoming(self.connection_genes.len() - 1);
+            self.need_topology_resorted = true;
         };
 
         self.node_gene_index += 1;
@@ -374,7 +383,8 @@ impl NeatNetwork {
         let mut rng = thread_rng();
         let current_innovation = self.get_global_innovation();
 
-        let topology_sorted = self.topological_sort().unwrap();
+        self.sort_topology();
+        let topology_sorted = &self.topology_sort_cached;
         let mut node_from_idx = rng.gen_range(0..topology_sorted.len() - 1);
         let mut node_to_idx = rng.gen_range(node_from_idx + 1..topology_sorted.len());
         let mut attempts = 0;
@@ -414,6 +424,7 @@ impl NeatNetwork {
         if let Some(conn) = connection {
             self.connection_genes.push(conn);
             self.node_genes[node_to].register_new_incoming(self.connection_genes.len() - 1);
+            self.need_topology_resorted = true;
         };
     }
 
@@ -489,9 +500,6 @@ impl NeatNetwork {
     /// Takes the input vector, and propagates it through all
     /// node genes and connections and returns the output layer.
     pub fn calculate_output(&mut self, input: Vec<f32>) -> Vec<f32> {
-        self.calculate_output_cached_topology(input, true)
-    }
-    pub fn calculate_output_cached_topology(&mut self, input: Vec<f32>, use_topology_cache: bool) -> Vec<f32> {
         assert!(input.len() == self.input_size);
         for node_gene in self.node_genes.iter_mut() {
             node_gene.set_activation(0.0);
@@ -504,14 +512,8 @@ impl NeatNetwork {
 
         // Iterates through all neurons (non input layer) and sums all the incoming nodes * weight
         // and adds a bias. 
-        let topology_order =
-            if use_topology_cache { &self.topology_sort_cached }
-            else {
-                self.topology_sort_cached = self.topological_sort().unwrap();
-                &self.topology_sort_cached
-            };
-
-        for index in topology_order {
+        self.sort_topology();
+        for index in &self.topology_sort_cached {
             let node = &self.node_genes[*index];
 
             // Skip input nodes
@@ -549,9 +551,17 @@ impl NeatNetwork {
         (0..outputs.len()).map(|i| self.activations.output.run(&outputs, i)).collect()
     }
 
+    /// Will sort the topology, or not if already done
+    pub fn sort_topology(&mut self) -> () {
+        if self.need_topology_resorted {
+            self.need_topology_resorted = false;
+            self.topology_sort_cached = self.generate_topological_sort().unwrap()
+        }
+    }
+
     /// The degree of a node is the amount of weights which are connected to it. And the
     /// indegree is the number of weights coming in, and outdegree are the number going out.
-    pub fn topological_sort(&self) -> Option<Vec<usize>> {
+    fn generate_topological_sort(&mut self) -> Option<Vec<usize>> {
         let num_nodes = self.node_genes.len();
         let mut in_degree = vec![0; num_nodes];
         let mut adj_list = vec![vec![]; num_nodes];
@@ -578,6 +588,7 @@ impl NeatNetwork {
         }
 
         if sorted.len() == num_nodes {
+            self.topology_sort_cached = sorted.clone();
             Some(sorted)
         } else {
             // Graph has a cycle, no valid topological sort
@@ -718,7 +729,9 @@ impl NeatNetwork {
 
     /// Store the fitness of the current network
     pub fn evaluate_fitness<F: FitnessEvaluator>(&mut self, fitness_evaluator: Arc<Mutex<F>>) -> () {
-        self.topology_sort_cached = self.topological_sort().unwrap();
+        // TODO WHY do we put this here?
+        self.sort_topology();
+
         // let score = (fitness_func)(self);
         let score = fitness_evaluator.lock().unwrap().run(self);
         self.previous_fitness = score;
