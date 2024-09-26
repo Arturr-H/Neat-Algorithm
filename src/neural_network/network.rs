@@ -3,10 +3,10 @@ use std::{collections::{HashMap, HashSet}, fmt::Debug, iter, sync::{Arc, Mutex}}
 use rand::{thread_rng, Rng};
 use serde_derive::{Serialize, Deserialize};
 use crate::trainer::{config::{mutation::GenomeMutationProbablities, network_config::NetworkConfig}, fitness::FitnessEvaluator};
-use super::{activation::NetworkActivations, connection_gene::ConnectionGene, node_gene::{NodeGene, NodeGeneType}};
+use super::{activation::NetworkActivations, average::exponential_average, connection_gene::ConnectionGene, node_gene::{NodeGene, NodeGeneType}};
 
 /* Constants */
-pub const AVERAGE_FITNESS_WINDOW_SIZE: usize = 25;
+pub const AVERAGE_FITNESS_WINDOW_SIZE: usize = 12;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct NeatNetwork {
@@ -719,7 +719,7 @@ impl NeatNetwork {
     /// Returns the average fitness of the previous 
     /// `AVERAGE_FITNESS_WINDOW_SIZE` nr of evaluations
     pub fn average_fitness(&mut self) -> f32 {
-        let avg = self.fitness_window.iter().sum::<f32>() / AVERAGE_FITNESS_WINDOW_SIZE as f32;
+        let avg = exponential_average(&self.fitness_window, 0.75);
         self.average_fitness = avg;
         avg
     }

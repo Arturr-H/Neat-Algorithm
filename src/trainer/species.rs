@@ -1,12 +1,12 @@
 /* Imports */
 use std::{collections::HashMap, sync::{Arc, Mutex}};
 use rand::{thread_rng, Rng};
-use crate::neural_network::{connection_gene::ConnectionGene, network::NeatNetwork};
+use crate::neural_network::{average::exponential_average, connection_gene::ConnectionGene, network::NeatNetwork};
 
 use super::fitness::FitnessEvaluator;
 
 /* Constants */
-pub const SPECIES_AVERAGE_SCORE_WINDOW_SIZE: usize = 25;
+pub const SPECIES_AVERAGE_SCORE_WINDOW_SIZE: usize = 12;
 
 pub struct Species {
     /// The representative of a species is a network just like the other
@@ -311,7 +311,7 @@ impl Species {
         self.fitness_window.rotate_right(1);
         self.fitness_window[0] = species_average;
 
-        let avg = self.fitness_window.iter().sum::<f32>() / SPECIES_AVERAGE_SCORE_WINDOW_SIZE as f32;
+        let avg = exponential_average(&self.fitness_window, 0.75);
         self.average_fitness = avg;
     }
 
