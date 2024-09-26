@@ -286,6 +286,9 @@ impl<F: FitnessEvaluator + Send + Sync> Evolution<F> {
     pub fn average_fitness(&self) -> f32 {
         self.species.iter().map(|e| e.average_fitness()).sum::<f32>() / self.species.len() as f32
     }
+    pub fn species_fitnesses(&self) -> Vec<f32> {
+        self.species.iter().map(|e| e.average_fitness()).collect()
+    }
 
     /// Returns a reference to all species
     pub fn species(&self) -> &Vec<Species> {

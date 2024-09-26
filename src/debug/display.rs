@@ -7,8 +7,8 @@ use crate::{neural_network::{network::{NeatNetwork, AVERAGE_FITNESS_WINDOW_SIZE}
 
 /* Constants */
 const NODE_SIZE: f32 = 5.;
-const AVERAGE_FITNESS_LEN_GRAPH: usize = 50;
-const DRAW_GRAPH_NODE_EACH_NTH_GEN: usize = 50;
+const AVERAGE_FITNESS_LEN_GRAPH: usize = 150;
+const DRAW_GRAPH_NODE_EACH_NTH_GEN: usize = 25;
 struct DrawContext<T: FitnessEvaluator + Send + Sync> {
     evolution: Evolution<T>,
     species_index: usize,
@@ -91,7 +91,7 @@ impl<T: FitnessEvaluator + Send + Sync> eframe::App for DrawContext<T> {
                         self.speed_gen = false;
                     };
 
-                    self.graph_fitnesses += self.evolution.average_fitness();
+                    self.graph_fitnesses += self.evolution.species_fitnesses().iter().max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap();
                     if self.evolution.get_generation() % DRAW_GRAPH_NODE_EACH_NTH_GEN == 0 {
                         self.average_fitnesses.rotate_left(1);
                         self.average_fitnesses[AVERAGE_FITNESS_LEN_GRAPH - 1] = self.graph_fitnesses / DRAW_GRAPH_NODE_EACH_NTH_GEN as f32;
@@ -102,7 +102,7 @@ impl<T: FitnessEvaluator + Send + Sync> eframe::App for DrawContext<T> {
             }
             if ctx.input(|i| i.key_pressed(Key::Space)) {
                 self.evolution.generation();
-                self.graph_fitnesses += self.evolution.average_fitness();
+                self.graph_fitnesses += self.evolution.species_fitnesses().iter().max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap();
                 if self.evolution.get_generation() % DRAW_GRAPH_NODE_EACH_NTH_GEN == 0 {
                     self.average_fitnesses.rotate_left(1);
                     self.average_fitnesses[AVERAGE_FITNESS_LEN_GRAPH - 1] = self.graph_fitnesses / DRAW_GRAPH_NODE_EACH_NTH_GEN as f32;
@@ -230,7 +230,7 @@ impl<T: FitnessEvaluator + Send + Sync> eframe::App for DrawContext<T> {
                         // });
                     }else if hovering && clicked {
                         println!("==== {:?} =====", self.evolution.species()[self.species_index].get_name());
-                        println!("topology sorted {:?}", network.topological_sort());
+                        // println!("topology sorted {:?}", network.topological_sort());
                         println!("{:?}", network);
                         println!("Node genes: \n{}\n....", network.node_genes().iter().map(|e| e.verbose_debug() + "\n").collect::<String>());
                     }
@@ -486,7 +486,7 @@ fn draw_fitness_graph(w: f32, h: f32, tab_height: f32, average_fitnesses: &[f32]
     painter.text(
         pos2(w / 2., h - tab_height / 2.),
         Align2::CENTER_CENTER,
-        format!("{:.3} max{:.3}", average_fitnesses[AVERAGE_FITNESS_LEN_GRAPH - 1], max_fitness),
+        format!("{:.3}", average_fitnesses[AVERAGE_FITNESS_LEN_GRAPH - 1]),
         FontId::new(28., egui::FontFamily::Monospace),
         Color32::WHITE
     );
