@@ -662,19 +662,13 @@ impl NeatNetwork {
     }
 
     /// Retrieve from save file
-    pub fn retrieve(path: &str) -> Self {
+    pub fn retrieve(path: &str) -> Option<Self> {
         match std::fs::read(path) {
             Ok(bytes) => match bincode::deserialize::<Self>(&bytes) {
-                Ok(contents) => contents,
-                Err(e) => {
-                    println!("Error deserializing {e:?}");
-                    panic!("NOO");
-                }
+                Ok(contents) => Some(contents),
+                Err(_) => None
             },
-            Err(e) => {
-                println!("Error reading {e:?}");
-                panic!("NOO");
-            }
+            Err(_) => None
         }
     }
 
