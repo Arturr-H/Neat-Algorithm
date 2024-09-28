@@ -112,7 +112,7 @@ impl NeatNetwork {
 
         /* Bias node */
         let mut bias = NodeGene::new(NodeGeneType::Input, 0.0);
-        bias.set_activation(1.);
+        bias.set_bias(1.);
         node_genes.push(bias);
 
         // Create connections genes
@@ -241,28 +241,43 @@ impl NeatNetwork {
 
         let mut node_genes = Vec::new();
         for i in 0..highest_node_index + 1 {
-            let node_type = match i {
-                _ if i < input => NodeGeneType::Input,
-                _ if i < (input + output) => NodeGeneType::Output,
-                _ => NodeGeneType::Regular
-            };
+            /* Bias */
+            if i == input + output {
+                let mut node_gene = NodeGene::new(NodeGeneType::Output, 0.0);
+                node_gene.set_bias(1.);
+                match incoming.get(&i) {
+                    Some(indexes) => {
+                        node_gene.set_incoming_indexes(indexes.clone());
+                        node_gene.set_x(indexes.len() as f32 / max_incoming as f32 * 0.8 + 0.1);
+                    },
+                    None => {}
+                };
+                node_genes.push(node_gene);
+            }else {
+                let node_type = match i {
+                    _ if i < input => NodeGeneType::Input,
+                    _ if i < (input + output) => NodeGeneType::Output,
+                    _ => NodeGeneType::Regular
+                };
 
-            // TODO NOT 0.5
-            let x = match node_type {
-                NodeGeneType::Input => 0.0,
-                NodeGeneType::Regular => 0.5,
-                NodeGeneType::Output => 1.0,
-            };
-            let mut node_gene = NodeGene::new(node_type, x);
-            match incoming.get(&i) {
-                Some(indexes) => {
-                    node_gene.set_incoming_indexes(indexes.clone());
-                    node_gene.set_x(indexes.len() as f32 / max_incoming as f32 * 0.8 + 0.1);
-                },
-                None => {}
-            };
+                // TODO NOT 0.5
+                let x = match node_type {
+                    NodeGeneType::Input => 0.0,
+                    NodeGeneType::Regular => 0.5,
+                    NodeGeneType::Output => 1.0,
+                };
+                let mut node_gene = NodeGene::new(node_type, x);
+                match incoming.get(&i) {
+                    Some(indexes) => {
+                        node_gene.set_incoming_indexes(indexes.clone());
+                        node_gene.set_x(indexes.len() as f32 / max_incoming as f32 * 0.8 + 0.1);
+                    },
+                    None => {}
+                };
 
-            node_genes.push(node_gene);
+                node_genes.push(node_gene);
+            }
+
         }
 
         Self {
@@ -551,8 +566,7 @@ impl NeatNetwork {
             // Skip input nodes
             if node.node_type() == NodeGeneType::Input { continue; };
 
-            // TODO: Fix bias init (?)
-            let mut sum = 0.1;
+            let mut sum = node.bias();
             for incoming_index in node.incoming_connection_indexes() {
                 let connection = &self.connection_genes[*incoming_index];
                 if !connection.enabled() { continue; };
