@@ -110,6 +110,11 @@ impl NeatNetwork {
             node_genes.push(NodeGene::new(NodeGeneType::Output, 1.0));
         }
 
+        /* Bias node */
+        let mut bias = NodeGene::new(NodeGeneType::Input, 0.0);
+        bias.set_activation(1.);
+        node_genes.push(bias);
+
         // Create connections genes
         let mut local_occupied_connections = HashSet::new();
         let mut connection_genes = Vec::new();
@@ -138,6 +143,28 @@ impl NeatNetwork {
                 // Register that we've created a new outgoing weight for the new node
                 node_genes[output_idx].register_new_incoming(connection_genes.len() - 1);
             }
+        }
+
+        // Connect the bias node with all outputs
+        for output_idx in input..(input + output) {
+            let (connection, _) = Self::create_connection(
+                input + output, output_idx,
+                rng.gen_range(0.0..1.0),
+                global_occupied_connections.clone(),
+                &mut local_occupied_connections,
+                &mut highest_local_innovation,
+                local_innovation,
+                true
+            );
+
+            // We don't need to know if we should increment
+            // because it should always be true for initializing
+            // weights
+            local_innovation += 1;
+            if let Some(conn) = connection { connection_genes.push(conn); };
+
+            // Register that we've created a new outgoing weight for the new node
+            node_genes[output_idx].register_new_incoming(connection_genes.len() - 1);
         }
 
         // Set the global innovation because the "starter"
@@ -396,8 +423,8 @@ impl NeatNetwork {
             attempts += 1;
         }
 
-        // We don't want to connect a TO an input node.
-        while self.is_input(topology_sorted[node_to_idx]) {
+        // We don't want to connect a TO an input node or a bias node
+        while self.is_input(topology_sorted[node_to_idx]) || self.is_bias(topology_sorted[node_to_idx]) {
             if attempts > 20 { return };
             node_to_idx = rng.gen_range(node_from_idx + 1..topology_sorted.len());
             attempts += 1;
@@ -501,8 +528,11 @@ impl NeatNetwork {
     /// node genes and connections and returns the output layer.
     pub fn calculate_output(&mut self, input: Vec<f32>) -> Vec<f32> {
         assert!(input.len() == self.input_size);
-        for node_gene in self.node_genes.iter_mut() {
-            node_gene.set_activation(0.0);
+        for (index, node_gene) in self.node_genes.iter_mut().enumerate() {
+            // Not for bias node which should be 1.0
+            if index != self.input_size + self.output_size {
+                node_gene.set_activation(0.0);
+            }
         }
         
         // Set activation for input nodes
@@ -699,6 +729,9 @@ impl NeatNetwork {
     /// 0 and self.input
     pub fn is_input(&self, index: usize) -> bool {
         index < self.input_size
+    }
+    pub fn is_bias(&self, index: usize) -> bool {
+        index == self.input_size
     }
 
     // Getters
