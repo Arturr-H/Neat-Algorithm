@@ -123,6 +123,10 @@ impl<F: FitnessEvaluator + Send + Sync> EvolutionBuilder<F> {
     /// there will be
     pub fn par_chunks_size(&mut self, size: usize) -> &mut Self { self.par_chunks_size = size; self }
 
+    /// If we should initialize networks with all input nodes connected
+    /// to all output nodes, default is true. Bias node not included.
+    pub fn preestablish_connections(&mut self, condition: bool) -> &mut Self { self.network_config.initialize_with_connections = condition; self }
+
     /// This function will run the network trough some test that
     /// the network is trained to do. The function will return an
     /// f32 which evaluates the performance of the network. Higher

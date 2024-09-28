@@ -123,25 +123,27 @@ impl NeatNetwork {
         let mut rng = thread_rng();
 
         // Create a connection between every single input and output node
-        for input_idx in 0..input {
-            for output_idx in input..(input + output) {
-                let (connection, _) = Self::create_connection(
-                    input_idx, output_idx,
-                    rng.gen_range(0.0..1.0),
-                    global_occupied_connections.clone(),
-                    &mut local_occupied_connections,
-                    &mut highest_local_innovation,
-                    local_innovation,
-                    true
-                );
+        if network_config.initialize_with_connections {
+            for input_idx in 0..input {
+                for output_idx in input..(input + output) {
+                    let (connection, _) = Self::create_connection(
+                        input_idx, output_idx,
+                        rng.gen_range(0.0..1.0),
+                        global_occupied_connections.clone(),
+                        &mut local_occupied_connections,
+                        &mut highest_local_innovation,
+                        local_innovation,
+                        true
+                    );
 
-                // We don't need to know if we should increment
-                // because it should always be true for initializing
-                // weights
-                local_innovation += 1;
-                if let Some(conn) = connection { connection_genes.push(conn); };
-                // Register that we've created a new outgoing weight for the new node
-                node_genes[output_idx].register_new_incoming(connection_genes.len() - 1);
+                    // We don't need to know if we should increment
+                    // because it should always be true for initializing
+                    // weights
+                    local_innovation += 1;
+                    if let Some(conn) = connection { connection_genes.push(conn); };
+                    // Register that we've created a new outgoing weight for the new node
+                    node_genes[output_idx].register_new_incoming(connection_genes.len() - 1);
+                }
             }
         }
 
