@@ -53,6 +53,7 @@ impl NodeGene {
     // Setters
     pub fn set_activation(&mut self, to: f32) -> () { self.activation = to; }
     pub fn set_x(&mut self, to: f32) -> () { self.x = to; }
+    pub fn set_bias(&mut self, to: f32) -> () { self.bias = to; }
 
     /// Appends a new incoming connection gene to the list
     pub fn register_new_incoming(&mut self, index: usize) -> () {
