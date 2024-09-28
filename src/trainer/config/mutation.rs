@@ -13,7 +13,7 @@ impl Default for GenomeMutationProbablities {
         Self {
             split_connection: 5,
             create_connection: 8,
-            change_weight: 100,
+            change_weight: 350,
             toggle_weight: 2,
             nothing: 20
         }
