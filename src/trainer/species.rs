@@ -216,10 +216,12 @@ impl Species {
             while i < net1_genes.len() {
                 child_genes.push(net1_genes[i].clone());
                 i += 1;
+                j += 1;
             }
         } else {
             while j < net2_genes.len() {
                 child_genes.push(net2_genes[j].clone());
+                i += 1;
                 j += 1;
             }
         }
