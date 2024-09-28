@@ -206,7 +206,7 @@ impl<T: FitnessEvaluator + Send + Sync> eframe::App for DrawContext<T> {
             /* Focus and display one network */
             if let Some(focus_index) = self.focusing {
                 let network = &networks[focus_index];
-                if let Some(info) = draw_network(self.focusing, (0., self.tab_height), network, w, h, 60., painter, pos, self.show_disabled) {
+                if let Some(info) = draw_network(self.focusing, (0., self.tab_height), network, w, h, 60., painter, pos, self.info.clone(), self.show_disabled) {
                     self.info = Some(info);
                 }
             }
@@ -224,10 +224,9 @@ impl<T: FitnessEvaluator + Send + Sync> eframe::App for DrawContext<T> {
 
                     if hovering && double_clicked {
                         self.focusing = Some(index);
-                        // let mut c = network.clone();
-                        // std::thread::spawn(move || {
-                        //     // snake_game(&mut c, true);
-                        // });
+                        let mut c = network.clone();
+                        let mut fiteval = self.evolution.get_fitness_evaluator().lock().unwrap().clone();
+                        fiteval.run_visualize(&mut c);
                     }else if hovering && clicked {
                         println!("==== {:?} =====", self.evolution.species()[self.species_index].get_name());
                         // println!("topology sorted {:?}", network.topological_sort());
@@ -246,7 +245,7 @@ impl<T: FitnessEvaluator + Send + Sync> eframe::App for DrawContext<T> {
                             Color32::TRANSPARENT
                         }
                     );
-                    if let Some(info) = draw_network(self.focusing, coordinate, network, cell_width, cell_height, padding, painter, pos, self.show_disabled) {
+                    if let Some(info) = draw_network(self.focusing, coordinate, network, cell_width, cell_height, padding, painter, pos, self.info.clone(), self.show_disabled) {
                         self.info = Some(info);
                     }
                 }
@@ -500,6 +499,7 @@ fn draw_network(
     cell_width: f32, cell_height: f32,
     padding: f32, painter: &Painter,
     mouse: Pos2,
+    info: Option<NodeGene>,
     show_disabled: bool
 ) -> Option<NodeGene> {
     let mut return_node = None;
@@ -529,6 +529,7 @@ fn draw_network(
     let adjusted_h = cell_height - padding*2.;
     let adjusted_w = cell_width - padding*2.;
     let mut node_positions: HashMap<usize, (f32, f32)> = HashMap::new();
+    let mut draw = Vec::new();
 
     for i in k {
         let v: &Vec<usize> = &positions[&i];
@@ -556,35 +557,21 @@ fn draw_network(
                 NodeGeneType::Output => Color32::BLUE,
             };
 
-            /* Hovering over node */
-            let hitbox = 5.;
-            let hovering = mouse.x > x - hitbox && mouse.x < x + hitbox
-                            && mouse.y > y - hitbox && mouse.y < y + hitbox;
-
-            if hovering {
-                return_node = Some(node.clone());
-            }
-
-            painter.circle_filled(
-                egui::Pos2 { x, y },
-                if hovering { NODE_SIZE * 1.4 } else { NODE_SIZE },
-                col
-            );
-            painter.text(
-                pos2(x + 10., y - 10.),
-                Align2::CENTER_CENTER, format!("{}", node_index),
-                FontId::default(), Color32::WHITE
-            );
+            // Bias
+            draw.push((*node_index, col, x, y, node));
         }
     }
 
-    for conn in network.get_genes() {
+    let highlight_conn = info.map_or(Vec::new(), |e| e.incoming_connection_indexes().clone());
+    for (index, conn) in network.get_genes().iter().enumerate() {
         if !show_disabled && !conn.enabled() { continue; }
         let n_in = conn.node_in();
         let n_out = conn.node_out();
         let (x1, y1) = node_positions[&n_in];
         let (x2, y2) = node_positions[&n_out];
-        let color = match conn.enabled() {
+        let color = if highlight_conn.contains(&index) {
+            Color32::GOLD
+        } else { match conn.enabled() {
             true => {
                 if conn.weight().is_positive() {
                     Color32::WHITE
@@ -593,13 +580,46 @@ fn draw_network(
                 }
             },
             false => Color32::RED
-        };
+        } };
 
         let path_stroke = (conn.weight().abs(), color);
         draw_arrow(is_focusing, conn.weight().abs(), painter, (x1, y1), (x2, y2), path_stroke);
         painter.line_segment(
             [(x1, y1).into(), (x2, y2).into()],
             path_stroke
+        );
+    }
+
+    for (node_index, col, x, y, node) in draw {
+        /* Hovering over node */
+        let hitbox = 5.;
+        let hovering = mouse.x > x - hitbox && mouse.x < x + hitbox
+                        && mouse.y > y - hitbox && mouse.y < y + hitbox;
+
+        if hovering {
+            return_node = Some(node.clone());
+        }
+
+        if node_index == network.input_size() + network.output_size() {
+            painter.rect_filled(
+                Rect {
+                    min: pos2(x - NODE_SIZE, y - NODE_SIZE),
+                    max: pos2(x + NODE_SIZE, y + NODE_SIZE),
+                },
+                0.,
+                col
+            );
+        }else {
+            painter.circle_filled(
+                egui::Pos2 { x, y },
+                if hovering { NODE_SIZE * 1.4 } else { NODE_SIZE },
+                col
+            );
+        }
+        painter.text(
+            pos2(x + 10., y - 10.),
+            Align2::CENTER_CENTER, format!("{}", node_index),
+            FontId::default(), Color32::WHITE
         );
     }
 

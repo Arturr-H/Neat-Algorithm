@@ -298,8 +298,10 @@ impl<F: FitnessEvaluator + Send + Sync> Evolution<F> {
     pub fn species(&self) -> &Vec<Species> {
         &self.species
     }
-
     pub fn get_generation(&self) -> usize {
         self.generation
+    }
+    pub fn get_fitness_evaluator(&self) -> Arc<Mutex<F>> {
+        self.fitness_evaluator.clone()
     }
 }
