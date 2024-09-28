@@ -2,7 +2,7 @@ use std::time::Duration;
 use rand::seq::SliceRandom;
 use crate::{neural_network::network::NeatNetwork, trainer::fitness::FitnessEvaluator, utils::find_max_index};
 
-const GRID_SIZE: usize = 6;
+const GRID_SIZE: usize = 8;
 const INITIAL_SNAKE_LENGTH: usize = 3;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -56,11 +56,11 @@ impl SnakeGame {
             game.update();
             if log {
                 game.display();
-                std::thread::sleep(Duration::from_millis(20));
+                std::thread::sleep(Duration::from_millis(10));
             }
             
-            let apple_pos = vec![game.apple.x as f32, game.apple.y as f32];
-            let snake_head_pos = vec![game.snake.first().unwrap().x as f32, game.snake.first().unwrap().y as f32];
+            let apple_pos = vec![game.apple.x as f32 / 6., game.apple.y as f32 / 6.];
+            let snake_head_pos = vec![game.snake.first().unwrap().x as f32 / 6., game.snake.first().unwrap().y as f32 / 6.];
             let proximity = game.get_proximity().to_vec();
             let input = Vec::new().into_iter()
                 .chain(snake_head_pos)
@@ -85,7 +85,6 @@ impl SnakeGame {
 
     pub fn generate_apple(snake: &Vec<Position>) -> Option<Position> {
         let mut rng = rand::thread_rng();
-        let mut tries = 0;
         let mut available_coords = Vec::new();
 
         for y in 0..GRID_SIZE {
@@ -98,23 +97,14 @@ impl SnakeGame {
 
         if available_coords.is_empty() { return None }
 
-        loop {
-            tries += 1;
-            let new_apple = available_coords.choose(&mut rng).unwrap();
-            
-            if tries > 50 {
-                return None;   
-            }else if !snake.contains(&new_apple) {
-                return Some(*new_apple);
-            }
-        }
+        available_coords.choose(&mut rng).cloned()
     }
 
     pub fn update(&mut self) {
         if self.is_game_over {
             return;
         }else {
-            self.score += 0.001;
+            self.score += 0.01;
         }
 
         let head = self.snake.first().unwrap();
@@ -133,18 +123,18 @@ impl SnakeGame {
             return;
         }
         self.snake.insert(0, new_head);
-        self.apple_worth = (self.apple_worth - 0.01).max(0.3);
+        self.apple_worth = (self.apple_worth - 0.02).max(0.3);
         if new_head == self.apple {
             self.apple = match SnakeGame::generate_apple(&self.snake) {
                 Some(e) => e,
                 None => {
-                    self.score += 10.;
+                    self.score += 1.;
                     self.is_game_over = true;
                     return
                 }
             };
-            self.score += self.apple_worth;
-            self.apple_worth = 1.;
+            self.score += 1.;
+            self.apple_worth = self.apple_worth;
         } else {
             self.snake.remove(self.snake.len() - 1);
         }
@@ -205,6 +195,6 @@ impl SnakeGame {
 pub struct SnakeGameEvaluator;
 impl FitnessEvaluator for SnakeGameEvaluator {
     fn run(&mut self, network: &mut NeatNetwork) -> f32 {
-        SnakeGame::score_game(network, 500, false)
+        SnakeGame::score_game(network, 800, false)
     }
 }
