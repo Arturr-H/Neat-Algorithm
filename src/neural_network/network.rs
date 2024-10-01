@@ -1,9 +1,9 @@
 /* Imports */
-use std::{collections::{HashMap, HashSet}, fmt::Debug, iter, sync::{Arc, Mutex}};
-use rand::{thread_rng, Rng};
+use std::{collections::{HashMap, HashSet}, fmt::Debug, iter, ops::Range, sync::{Arc, Mutex}};
+use rand::{rngs::ThreadRng, thread_rng, Rng};
 use serde_derive::{Serialize, Deserialize};
 use crate::trainer::{config::{mutation::GenomeMutationProbablities, network_config::NetworkConfig}, fitness::FitnessEvaluator};
-use super::{activation::NetworkActivations, average::exponential_average, connection_gene::ConnectionGene, node_gene::{NodeGene, NodeGeneType}};
+use super::{activation::NetworkActivations, connection_gene::ConnectionGene, node_gene::{NodeGene, NodeGeneType}};
 
 /* Constants */
 pub const AVERAGE_FITNESS_WINDOW_SIZE: usize = 12;
@@ -101,8 +101,11 @@ impl NeatNetwork {
         activations: NetworkActivations,
         network_config: Arc<NetworkConfig>
     ) -> Self {
+        let mut rng = thread_rng();
+        let mut local_innovation = 0;
+
         // Create node genes
-        let mut node_genes = Vec::with_capacity(input + output);
+        let mut node_genes = Vec::with_capacity(input + output + network_config.initial_hidden_neurons);
         for _ in 0..input {
             node_genes.push(NodeGene::new(NodeGeneType::Input, 0.0));
         }
@@ -110,91 +113,67 @@ impl NeatNetwork {
             node_genes.push(NodeGene::new(NodeGeneType::Output, 1.0));
         }
 
-        /* Bias node */
+        // Bias node
         let mut bias = NodeGene::new(NodeGeneType::Input, 0.0);
         bias.set_bias(1.);
         node_genes.push(bias);
 
-        // Create connections genes
-        let mut local_occupied_connections = HashSet::new();
-        let mut connection_genes = Vec::new();
-        let mut highest_local_innovation = 0;
-        let mut local_innovation = 0;
-        let mut rng = thread_rng();
+        // Create hidden neurons if set in config
+        for _ in 0..network_config.initial_hidden_neurons {
+            node_genes.push(NodeGene::new(NodeGeneType::Regular, 0.5));
+        }
+
+        let mut init = Self {
+            input_size: input, output_size: output, node_genes,
+            connection_genes: Vec::new(), node_gene_index: 0,
+            global_innovation, global_occupied_connections,
+            local_occupied_connections: HashSet::new(),
+            highest_local_innovation: 0, activations,
+            previous_fitness: 0.0, average_fitness: 0.0,
+            fitness_window: [0.0; AVERAGE_FITNESS_WINDOW_SIZE],
+            network_config, topology_sort_cached: Vec::new(),
+            need_topology_resorted: true
+        };
+
 
         // Create a connection between every single input and output node
-        if network_config.initialize_with_connections {
-            for input_idx in 0..input {
-                for output_idx in input..(input + output) {
-                    let (connection, _) = Self::create_connection(
-                        input_idx, output_idx,
-                        rng.gen_range(0.0..1.0),
-                        global_occupied_connections.clone(),
-                        &mut local_occupied_connections,
-                        &mut highest_local_innovation,
-                        local_innovation,
-                        true
-                    );
+        if init.network_config.initialize_with_connections {
+            init.create_weights(
+                0..input, input..(input + output),
+                &mut local_innovation, &mut rng
+            );
+        }
 
-                    // We don't need to know if we should increment
-                    // because it should always be true for initializing
-                    // weights
-                    local_innovation += 1;
-                    if let Some(conn) = connection { connection_genes.push(conn); };
-                    // Register that we've created a new outgoing weight for the new node
-                    node_genes[output_idx].register_new_incoming(connection_genes.len() - 1);
-                }
-            }
+        // Hidden connections if enabled for init
+        if init.network_config.initial_hidden_neurons != 0 {
+            // To hidden
+            init.create_weights(
+                0..input, (input + output + 1)..init.node_genes.len(),
+                &mut local_innovation, &mut rng
+            );
+
+            // From hidden
+            init.create_weights(
+                (input + output + 1)..init.node_genes.len(), input..(input + output),
+                &mut local_innovation, &mut rng
+            );
         }
 
         // Connect the bias node with all outputs
-        for output_idx in input..(input + output) {
-            let (connection, _) = Self::create_connection(
-                input + output, output_idx,
-                rng.gen_range(0.0..1.0),
-                global_occupied_connections.clone(),
-                &mut local_occupied_connections,
-                &mut highest_local_innovation,
-                local_innovation,
-                true
-            );
-
-            // We don't need to know if we should increment
-            // because it should always be true for initializing
-            // weights
-            local_innovation += 1;
-            if let Some(conn) = connection { connection_genes.push(conn); };
-
-            // Register that we've created a new outgoing weight for the new node
-            node_genes[output_idx].register_new_incoming(connection_genes.len() - 1);
-        }
+        let bias_index = input + output;
+        init.create_weights(
+            bias_index..(bias_index + 1),
+            input..(input + output),
+            &mut local_innovation, &mut rng
+        );
 
         // Set the global innovation because the "starter"
         // connection genes. We do -1 because we didn't set
         // a single connection for the last incremented inno.
-        *global_innovation.lock().unwrap() = local_innovation - 1;
+        *init.global_innovation.lock().unwrap() = local_innovation - 1;
+        init.node_gene_index = input + output;
 
-        Self {
-            input_size: input,
-            output_size: output,
-
-            node_genes,
-            connection_genes,
-            node_gene_index: input + output,
-            global_innovation,
-            global_occupied_connections,
-            local_occupied_connections,
-            highest_local_innovation,
-            activations,
-            previous_fitness: 0.,
-            average_fitness: 0.,
-            fitness_window: [0.0; AVERAGE_FITNESS_WINDOW_SIZE],
-            network_config: network_config.clone(),
-
-            // TODO: Should we initialize with sorted or not? I think not
-            topology_sort_cached: Vec::new(),
-            need_topology_resorted: true,
-        }
+        init
     }
 
     /// Create a new network but provide the genes (connections). Used
@@ -277,7 +256,6 @@ impl NeatNetwork {
 
                 node_genes.push(node_gene);
             }
-
         }
 
         Self {
@@ -299,6 +277,37 @@ impl NeatNetwork {
             // TODO: Should we initialize with sorted or not? I think not
             topology_sort_cached: Vec::new(),
             need_topology_resorted: true,
+        }
+    }
+
+    /// Create connection genes from two ranges of indexes for initialization
+    pub fn create_weights(
+        &mut self,
+        input_range: Range<usize>,
+        output_range: Range<usize>,
+        local_innovation: &mut usize,
+        rng: &mut ThreadRng,
+    ) -> () {
+        for input_idx in input_range.clone() {
+            for output_idx in output_range.clone() {
+                let (connection, _) = Self::create_connection(
+                    input_idx, output_idx,
+                    rng.gen_range(0.0..1.0),
+                    self.global_occupied_connections.clone(),
+                    &mut self.local_occupied_connections,
+                    &mut self.highest_local_innovation,
+                    *local_innovation,
+                    true
+                );
+
+                // We don't need to know if we should increment
+                // because it should always be true for initializing
+                // weights
+                *local_innovation += 1;
+                if let Some(conn) = connection { self.connection_genes.push(conn); };
+                // Register that we've created a new outgoing weight for the new node
+                self.node_genes[output_idx].register_new_incoming(self.connection_genes.len() - 1);
+            }
         }
     }
 
@@ -363,23 +372,13 @@ impl NeatNetwork {
         let current_innovation = self.get_global_innovation();
         let length = self.connection_genes.len();
             
-        let gene = &mut self.connection_genes[rng.gen_range(0..length)];
+        let gene_index = rng.gen_range(0..length);
+        let gene = &mut self.connection_genes[gene_index];
         let gene_node_in = gene.node_in();
         let gene_node_out = gene.node_out();
 
         let node_in_x = &self.node_genes[gene_node_in].x();
         let node_out_x = &self.node_genes[gene_node_out].x();
-        let mut new_x;
-        new_x = (node_in_x + node_out_x) / 2.;
-        if node_in_x == node_out_x {
-            new_x *= 1.05;
-        }
-
-        gene.set_enabled(false);
-        self.node_genes.push(NodeGene::new(
-            NodeGeneType::Regular,
-            new_x
-        ));
 
         let (input_connection, should_increment_ingoing) = Self::create_connection(
             gene_node_in, self.node_gene_index,
@@ -408,18 +407,28 @@ impl NeatNetwork {
 
         // Register that we've created a new incoming weight
         // for the new node, and the updated node and push connection
-        if let Some(input) = input_connection {
+        if let (Some(input), Some(output)) = (input_connection, output_connection) {
+            let mut new_x;
+            new_x = (node_in_x + node_out_x) / 2.;
+            if node_in_x == node_out_x {
+                new_x *= 1.05;
+            }
+    
+            self.connection_genes[gene_index].set_enabled(false);
+            self.node_genes.push(NodeGene::new(
+                NodeGeneType::Regular,
+                new_x
+            ));
+
             self.connection_genes.push(input);
-            self.node_genes[self.node_gene_index].register_new_incoming(self.connection_genes.len() - 2);
-            self.need_topology_resorted = true;
-        };
-        if let Some(output) = output_connection {
             self.connection_genes.push(output);
+
+            self.node_genes[self.node_gene_index].register_new_incoming(self.connection_genes.len() - 2);
             self.node_genes[gene_node_out].register_new_incoming(self.connection_genes.len() - 1);
             self.need_topology_resorted = true;
-        };
 
-        self.node_gene_index += 1;
+            self.node_gene_index += 1;
+        };
     }
 
     /// Create a random connection
@@ -762,7 +771,7 @@ impl NeatNetwork {
     /// Returns the average fitness of the previous 
     /// `AVERAGE_FITNESS_WINDOW_SIZE` nr of evaluations
     pub fn average_fitness(&mut self) -> f32 {
-        let avg = exponential_average(&self.fitness_window, 0.75);
+        let avg = self.network_config.fitness_averaging_method.run(&self.fitness_window);
         self.average_fitness = avg;
         avg
     }
