@@ -2,7 +2,7 @@ use core::f32;
 use std::{collections::HashMap, sync::{Arc, Mutex}};
 use rayon::{iter::ParallelIterator, slice::ParallelSliceMut};
 
-use crate::neural_network::{activation::{Activation, NetworkActivations}, network::NeatNetwork};
+use crate::neural_network::{activation::{Activation, NetworkActivations}, average::FitnessAverage, network::NeatNetwork};
 use super::{config::{mutation::{GenomeMutationProbablities, WeightChangeProbablities}, network_config::NetworkConfig, stop_condition::StopCondition}, fitness::FitnessEvaluator, species::{Species, SPECIES_AVERAGE_SCORE_WINDOW_SIZE}};
 
 const DEFAULT_SPECIES_SIZE: usize = 10;
@@ -127,6 +127,11 @@ impl<F: FitnessEvaluator + Send + Sync> EvolutionBuilder<F> {
     /// to all output nodes, default is true. Bias node not included.
     pub fn preestablish_connections(&mut self, condition: bool) -> &mut Self { self.network_config.initialize_with_connections = condition; self }
 
+    /// How many hidden neurons we start with for "boosting" the early
+    /// stages of evolution. (neuron creation probabilities are often
+    /// very low)
+    pub fn preestablish_hidden_neurons(&mut self, nodes: usize) -> &mut Self { self.network_config.initial_hidden_neurons = nodes; self }
+
     /// This function will run the network trough some test that
     /// the network is trained to do. The function will return an
     /// f32 which evaluates the performance of the network. Higher
@@ -138,6 +143,9 @@ impl<F: FitnessEvaluator + Send + Sync> EvolutionBuilder<F> {
     /// ## WARNING
     /// Output NEEDS to be bigger than 0
     pub fn set_fitness_evaluator(&mut self, eval: F) -> &mut Self { self.fitness_evaluator = Some(eval); self }
+
+    /// What method we use to calculate average fitness for a network
+    pub fn fitness_averaging_method(&mut self, method: FitnessAverage) -> &mut Self { self.network_config.fitness_averaging_method = method; self }
 
     /// Compile all set values and make this
     /// struct ready for evolution
